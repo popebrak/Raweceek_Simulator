@@ -1,8 +1,11 @@
 # RaWeCeEk Simulator
 
 I'm learning python.
+
 By the most absurd means possible.
+
 Do not judge me.
+
 
 This program provides commentary on simulated Formula 1 races between radical political philosophers.
 
