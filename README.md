@@ -54,4 +54,5 @@ Example:
   6 passes for the podium places out on track.
 
 ```
+Raweceek Simulator © 2026 by Pope Brak is licensed under CC BY-NC-SA 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/ 
 

@@ -76,6 +76,11 @@ def _damage_tag(s):
     return f"  [{', '.join(bits)}]" if bits else ""
 
 
+def _tyre_tag(s):
+    """How old the tyres are -- the higher it climbs, the slower the lap."""
+    return f"  ({s.stint_laps}L tyres)" if s.stint_laps > 0 else ""
+
+
 def render_standings(standings, lap, total_laps):
     lines = [f"  LAP {lap}/{total_laps}", "  " + "-" * 66]
     for s in standings:
@@ -84,7 +89,7 @@ def render_standings(standings, lap, total_laps):
             continue
         gap_str = "LEADER" if s.position == 1 else f"+{s.gap_to_leader:.3f}"
         lines.append(f"  P{s.position:<2} {s.name:<21} {s.team:<15} "
-                     f"{gap_str:<10} last {format_time(s.last_lap)}{_damage_tag(s)}")
+                     f"{gap_str:<10} last {format_time(s.last_lap)}{_tyre_tag(s)}{_damage_tag(s)}")
     return "\n".join(lines)
 
 
@@ -139,6 +144,17 @@ def render_overtake(ov):
     if ov.position <= 3:
         return f"  >> {ov.passer} forces it past {ov.passed}{at} for P{ov.position}!"
     return f"  >> {ov.passer} gets the move done on {ov.passed}{at}, up into P{ov.position}."
+
+
+# --- COMMENTARY: pit stops (fresh rubber, at the cost of track position). -----
+def render_pit(ps):
+    """One speakable line for a pit stop. The number of the stop colours the call."""
+    nth = {1: "", 2: "second ", 3: "third "}.get(ps.stop_number, f"{ps.stop_number}th ")
+    article = "an" if (ps.old_stint in (11, 18) or str(ps.old_stint).startswith("8")) else "a"
+    if ps.stop_number >= 2:
+        return (f"  >> {ps.driver_name} is back in for the {nth}time -- "
+                f"{article} {ps.old_stint}-lap stint done, fresh rubber on.")
+    return f"  >> {ps.driver_name} peels into the pits for fresh tyres after {ps.old_stint} laps -- back out he goes."
 
 
 # --- TELEMETRY: the fiddly bits. Numbers live HERE, not in commentary. -------

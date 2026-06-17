@@ -14,6 +14,13 @@ full share of a big shunt), and a major hit can retire either or both of them.
 
 Qualifying enforces Formula 1's real 107% rule: lap outside 107% of pole and you
 do not make the race. Nobody is excluded by name -- the standard does the work.
+
+Tyres are the strategic layer. Wear is a per-lap time penalty that grows with the
+stint (the same shape as damage), scaled by the track's abrasiveness and the
+driver's tyre management, and it RESETS in the pits at the cost of a fixed time
+loss. Deciding when to take that loss is strategy; for now every car follows one
+simple threshold rule (see the pit block in run_race), which the future
+`strategy` attribute will replace with something cleverer and more characterful.
 """
 
 import random
@@ -64,10 +71,11 @@ REFERENCE_PACE = 90.0
 # --- The standing start ------------------------------------------------------
 # At lights-out the CLOCK hasn't started -- GRID POSITION is the only truth. The
 # start is its own phase: we string the field out by grid (each slot a little
-# further back in race time), then let a LAUNCH -- racecraft plus pure chaos --
-# shuffle the pack on the run to the first corner. This seeds total_time with a
-# real spread so that from lap 1 the engine knows who is where, instead of trying
-# to order twenty cars that all read 0.0 (which is what scrambled the old lap 1).
+# further back in race time), then let a LAUNCH -- the driver's launch skill plus
+# pure chaos -- shuffle the pack on the run to the first corner. This seeds
+# total_time with a real spread so that from lap 1 the engine knows who is where,
+# instead of trying to order twenty cars that all read 0.0 (which scrambled the
+# old lap 1).
 GRID_INTERVAL = 0.45    # race-time between consecutive grid slots as the field strings out
 LAUNCH_SPREAD = 0.35    # the chaos of the getaway (gaussian sigma, in seconds)
 LAUNCH_SKILL = 0.5      # how much racecraft helps (or, when low, hurts) off the line
@@ -77,6 +85,25 @@ LAUNCH_SKILL = 0.5      # how much racecraft helps (or, when low, hurts) off the
 # defending takes a smaller share of a glancing blow, but a major shunt wrecks both.
 COLLISION_DNF_CHANCE = 0.42     # per-car DNF chance in a MAJOR collision
 DEFENDER_SHARE = {"minor": 0.4, "moderate": 0.6, "major": 1.0}  # damage the passed car absorbs
+
+# --- Tyres ------------------------------------------------------------------
+# Wear is the SAME machine as damage -- a per-lap time penalty that grows -- but
+# pointed at a different cause and, crucially, a different CURE. Damage comes from
+# random incidents and never heals; wear comes from just driving (predictable,
+# continuous) and RESETS in the pits. The pit stop costs a fixed chunk of time,
+# and deciding when that cost is worth paying is where strategy is born.
+#
+# The penalty is a function of STINT LENGTH (laps on the current set): a linear
+# bleed plus a small quadratic 'cliff' as the tyre gives up late in a stint. Two
+# dials scale it: the TRACK's abrasiveness (tracks.tyre_wear) and the DRIVER's
+# tyre_management (a high manager wears more slowly). We don't model graining or
+# core temps -- tyre_management IS our abstraction for "keeps them in the window".
+TYRE_LINEAR = 0.050     # seconds/lap added per lap of stint (the steady bleed)
+TYRE_QUAD = 0.0026      # the late 'cliff': grows with stint length squared
+TYRE_MGMT_SWING = 0.7   # how far tyre_management swings the wear rate (+/- ~0.35x)
+PIT_LOSS = 22.0         # time lost for a stop (pit lane + stationary), absolute seconds
+PIT_THRESHOLD = 2.5     # box once the tyre is costing more than this per lap...
+# ...and only if enough laps remain that fresh rubber pays the stop back (see loop).
 # -----------------------------------------------------------------------------
 
 
@@ -91,6 +118,8 @@ class CarState:
     retired: bool = False
     retired_on_lap: int = 0
     doomed_lap: int = 0               # >0 if hopeless racecraft has marked a guaranteed DNF lap
+    stint_laps: int = 0               # laps on the current set of tyres -- resets at a pit stop
+    pit_count: int = 0                # how many stops made so far
 
     @property
     def damage(self):
@@ -110,6 +139,7 @@ class Standing:
     suspension_damage: float
     retired: bool
     retired_on_lap: int
+    stint_laps: int = 0          # laps on the current tyres -- for the timing tower
 
     @property
     def damage(self):
@@ -145,11 +175,22 @@ class Overtake:
 
 
 @dataclass
+class PitStop:
+    """A trip down the pit lane: fresh tyres at the cost of track time. The other
+    new thread the commentary can pull on -- a stop reshuffles the race."""
+    driver_name: str
+    lap: int
+    stop_number: int     # 1 = first stop of the race for this car
+    old_stint: int       # how many laps the tyres being changed had done
+
+
+@dataclass
 class LapReport:
     lap: int
     standings: list = field(default_factory=list)   # list[Standing]
     incidents: list = field(default_factory=list)   # list[Incident]
     overtakes: list = field(default_factory=list)   # list[Overtake]
+    pit_stops: list = field(default_factory=list)   # list[PitStop]
 
 
 def simulate_lap(driver, track=None):
@@ -288,7 +329,8 @@ def _standings(cars):
     return [
         Standing(pos, c.driver.name, c.driver.team, c.grid_position,
                  c.total_time, c.last_lap, c.total_time - leader_time,
-                 c.aero_damage, c.suspension_damage, c.retired, c.retired_on_lap)
+                 c.aero_damage, c.suspension_damage, c.retired, c.retired_on_lap,
+                 c.stint_laps)
         for pos, c in enumerate(ordered, start=1)
     ]
 
@@ -325,7 +367,7 @@ def _run_start(cars):
     for car in cars:
         base = (car.grid_position - 1) * GRID_INTERVAL
         jitter = random.gauss(0, LAUNCH_SPREAD)
-        skill = (car.driver.racecraft - 0.5) * LAUNCH_SKILL   # >0 gains, <0 loses
+        skill = (car.driver.launch - 0.5) * LAUNCH_SKILL      # >0 gains, <0 loses
         car.total_time = max(0.0, base + jitter - skill)
 
     order = sorted(cars, key=lambda c: c.total_time)
@@ -336,6 +378,22 @@ def _run_start(cars):
             events.append(Overtake(car.driver.name, "", lap=1, position=new_pos,
                                    location="the start", places_gained=gained))
     return events
+
+
+def _tyre_penalty(car, track):
+    """The per-lap time cost of the current tyres, as a function of stint length.
+
+    A steady linear bleed plus a small quadratic 'cliff' late in the stint, scaled
+    by the track's abrasiveness and softened by the driver's tyre management. This
+    is the wear equivalent of `car.damage`: a number that taxes the lap and that a
+    pit stop wipes back to zero.
+    """
+    s = car.stint_laps
+    penalty = TYRE_LINEAR * s + TYRE_QUAD * s * s
+    if track is not None:
+        penalty *= getattr(track, "tyre_wear", 1.0)         # abrasive tracks chew tyres
+    penalty *= 1.0 - (car.driver.tire_management - 0.5) * TYRE_MGMT_SWING
+    return max(0.0, penalty)
 
 
 def run_race(starting_grid, track=None, laps=None, difficulty=None):
@@ -370,10 +428,13 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
         running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
         incidents = []
         overtakes = list(start_events) if lap == 1 else []
+        pit_stops = []
 
         for i, car in enumerate(running):
+            car.stint_laps += 1                                       # another lap on this set
             old_total = car.total_time
-            lap_time = simulate_lap(car.driver, track) + car.damage   # both damages tax the lap
+            tyre = _tyre_penalty(car, track)
+            lap_time = simulate_lap(car.driver, track) + car.damage + tyre  # damage AND tyres tax the lap
             time_lost = 0.0
 
             # 0. Hopeless racecraft: the inevitable, race-ending error finally arrives
@@ -400,6 +461,22 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
                 if inc.retirement:
                     _retire(car, lap, old_total, lap_time, time_lost)
                     continue
+
+            # 2b. Pit stop? A dumb-but-sensible heuristic for now: box once the
+            # tyre is costing more than the threshold AND enough laps remain that
+            # fresh rubber earns the stop back (penalty saved per lap * laps left >
+            # the pit loss). That second clause stops pointless late stops on its
+            # own. The CLEVER, characterful version of this call is what the future
+            # `strategy` attribute will own; for now every car follows the same rule.
+            laps_remaining = laps - lap
+            if tyre > PIT_THRESHOLD and tyre * laps_remaining > PIT_LOSS:
+                time_lost += PIT_LOSS
+                car.pit_count += 1
+                pit_stops.append(PitStop(car.driver.name, lap, car.pit_count, car.stint_laps))
+                car.stint_laps = 0                          # fresh rubber from next lap
+                car.total_time = old_total + lap_time + time_lost
+                car.last_lap = car.total_time - old_total
+                continue                                    # the in-lap skips the on-track fight
 
             # 3. The leader runs in clear air
             if i == 0:
@@ -444,7 +521,7 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
 
             car.last_lap = car.total_time - old_total
 
-        history.append(LapReport(lap, _standings(cars), incidents, overtakes))
+        history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops))
 
     return history
 

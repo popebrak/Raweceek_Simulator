@@ -38,6 +38,7 @@ class Track:
     character: str               # one-line flavour for the pre-race banner
     corners: list                # list[Corner]
     race_distance_km: float = 305.0   # F1 standard; Monaco is the exception
+    tyre_wear: float = 1.0       # abrasiveness: >1 chews tyres (Silverstone), <1 is gentle (Monaco)
 
     @property
     def laps(self):
@@ -48,7 +49,7 @@ class Track:
 CALENDAR = [
     Track(
         "Italian Grand Prix", "Monza", "Italy",
-        lap_length_km=5.793, base_lap_time=81.0, overtaking_difficulty=0.03,
+        lap_length_km=5.793, base_lap_time=81.0, overtaking_difficulty=0.03, tyre_wear=0.95,
         character="The Temple of Speed -- long straights, big tows, easy passing.",
         corners=[
             Corner("the Variante del Rettifilo", overtaking=True),
@@ -62,7 +63,7 @@ CALENDAR = [
     ),
     Track(
         "Belgian Grand Prix", "Spa-Francorchamps", "Belgium",
-        lap_length_km=7.004, base_lap_time=105.0, overtaking_difficulty=0.07,
+        lap_length_km=7.004, base_lap_time=105.0, overtaking_difficulty=0.07, tyre_wear=1.15,
         character="Long, fast and sweeping -- the Kemmel straight rewards a brave tow.",
         corners=[
             Corner("La Source", overtaking=True),
@@ -76,7 +77,7 @@ CALENDAR = [
     ),
     Track(
         "Monaco Grand Prix", "Monte Carlo", "Monaco",
-        lap_length_km=3.337, base_lap_time=73.0, overtaking_difficulty=0.45,
+        lap_length_km=3.337, base_lap_time=73.0, overtaking_difficulty=0.45, tyre_wear=0.45,
         race_distance_km=260.0,
         character="The jewel in the crown -- and a fortress. Track position is everything.",
         corners=[
@@ -94,7 +95,7 @@ CALENDAR = [
     ),
     Track(
         "British Grand Prix", "Silverstone", "United Kingdom",
-        lap_length_km=5.891, base_lap_time=88.0, overtaking_difficulty=0.12,
+        lap_length_km=5.891, base_lap_time=88.0, overtaking_difficulty=0.12, tyre_wear=1.3,
         character="Fast and flowing -- Maggotts and Becketts, then a run to Stowe.",
         corners=[
             Corner("Abbey"),
@@ -111,7 +112,7 @@ CALENDAR = [
     ),
     Track(
         "Japanese Grand Prix", "Suzuka", "Japan",
-        lap_length_km=5.807, base_lap_time=91.0, overtaking_difficulty=0.22,
+        lap_length_km=5.807, base_lap_time=91.0, overtaking_difficulty=0.22, tyre_wear=1.2,
         character="A flowing figure-of-eight -- technical, narrow, hard to pass.",
         corners=[
             Corner("the First Curve"),
@@ -126,7 +127,7 @@ CALENDAR = [
     ),
     Track(
         "Sao Paulo Grand Prix", "Interlagos", "Brazil",
-        lap_length_km=4.309, base_lap_time=71.0, overtaking_difficulty=0.10,
+        lap_length_km=4.309, base_lap_time=71.0, overtaking_difficulty=0.10, tyre_wear=0.92,
         character="Short, anticlockwise and full of elevation -- the Senna S bites.",
         corners=[
             Corner("the Senna S", overtaking=True),
