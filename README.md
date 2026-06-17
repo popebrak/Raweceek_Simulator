@@ -8,7 +8,8 @@ This program provides commentary on simulated Formula 1 races between radical po
 
 Example:
 
----
+
+```
  FINAL CLASSIFICATION
   ------------------------------------------------------------------
   P1  Plato                 Republic        79:15.585  WINNER    (from P1, --)
@@ -43,4 +44,5 @@ Example:
      - Max Stirner: spun out of their depth at the Variante della Roggia (lap 48)
   Fastest lap of the race: Friedrich Nietzsche, a 1:29.140.
 
----
+```
+
