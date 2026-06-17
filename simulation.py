@@ -1,12 +1,16 @@
 """The engine -- lap times, qualifying (with the 107% rule), races, incidents,
 damage, and DNFs.
 
-Damage is not one faceless number. An incident has a CAUSE (contact, the wall, a
-sausage kerb, an off-track moment) and a SEVERITY (minor/moderate/major), and it
-does specific harm to specific systems -- AERO and SUSPENSION -- each of which
-taxes every remaining lap. Carried damage also quietly raises the chance of a
-later failure, so a small early knock can end a race many laps on. Major hits can
-retire a car outright (DNF).
+Damage is not one faceless number. An incident has a CAUSE and a SEVERITY
+(minor/moderate/major), and it does specific harm to specific systems -- AERO and
+SUSPENSION -- each of which taxes every remaining lap. Carried damage also quietly
+raises the chance of a later failure, so a small early knock can end a race many
+laps on. Major hits can retire a car outright (DNF).
+
+Causes split into SOLO events (running wide, a sausage kerb, the wall) that hurt
+one car, and CONTACT -- a two-car collision off a failed overtake. A collision
+damages BOTH cars (the car defending takes a smaller share of a glancing blow, a
+full share of a big shunt), and a major hit can retire either or both of them.
 
 Qualifying enforces Formula 1's real 107% rule: lap outside 107% of pole and you
 do not make the race. Nobody is excluded by name -- the standard does the work.
@@ -33,11 +37,17 @@ RACECRAFT_FLOOR = 0.05          # at/below this, a driver is hopeless: a guarant
 # competitors, ~1.7 retirements per race (~9.6%), ~16% of races clean. (The two
 # Objectivism cars are guaranteed to retire on top of that -- see RACECRAFT_FLOOR.)
 SOLO_MISTAKE_CHANCE = 0.017     # lone error per lap, before skill-scaling
-CONTACT_CHANCE = 0.08           # extra risk when a passing move fails
-MAJOR_DNF_CHANCE = 0.60         # chance a 'major' incident ends the race on the spot
+CONTACT_CHANCE = 0.045          # chance a failed move turns into contact, before skill-scaling
+MAJOR_DNF_CHANCE = 0.60         # chance a 'major' SOLO incident ends the race on the spot
 DAMAGE_FAILURE_FACTOR = 0.008   # per-lap DNF risk per 1.0s/lap of carried damage
 SEVERITY_SPLIT = (0.58, 0.23)   # P(minor), P(moderate); remainder is major
 SEVERITY_MULT = {"minor": 1.0, "moderate": 2.2, "major": 4.5}
+
+# Collisions take two. A big (major) hit can pitch either car out -- and rolling
+# it for each independently means a really big one sometimes takes BOTH. The car
+# defending takes a smaller share of a glancing blow, but a major shunt wrecks both.
+COLLISION_DNF_CHANCE = 0.42     # per-car DNF chance in a MAJOR collision
+DEFENDER_SHARE = {"minor": 0.4, "moderate": 0.6, "major": 1.0}  # damage the passed car absorbs
 # -----------------------------------------------------------------------------
 
 
@@ -81,12 +91,14 @@ class Standing:
 class Incident:
     driver_name: str
     lap: int
-    cause: str           # "contact" | "wall" | "kerb" | "off-track" | "damage failure"
+    cause: str           # "collision" | "wall" | "kerb" | "off-track" | "damage failure" | "over the limit"
     severity: str        # "minor" | "moderate" | "major"
     time_lost: float
     aero_added: float
     suspension_added: float
     retirement: bool
+    other_name: str = ""        # the other car in a collision ("" for solo incidents)
+    other_retired: bool = False # did the OTHER car retire in this collision
 
 
 @dataclass
@@ -143,10 +155,11 @@ def _solo_cause():
 
 
 def _make_incident(car, lap, cause):
-    """Build an incident of the given cause, apply lasting damage, decide DNF.
+    """Build a SOLO incident (off-track, kerb, wall), apply lasting damage, decide DNF.
 
-    An off-track mostly costs time now; kerbs and contact mostly cost lasting
-    damage (suspension and aero) that taxes every future lap.
+    An off-track mostly costs time now; kerbs and walls mostly cost lasting damage
+    (suspension and aero) that taxes every future lap. Contact between cars is a
+    two-car event handled by _collide.
     """
     severity = _roll_severity()
     mult = SEVERITY_MULT[severity]
@@ -164,10 +177,6 @@ def _make_incident(car, lap, cause):
         time_lost = random.uniform(1.5, 3.5) * mult
         aero = random.uniform(0.15, 0.35) * mult
         susp = random.uniform(0.10, 0.30) * mult
-    elif cause == "contact":
-        time_lost = random.uniform(0.5, 2.0) * mult
-        aero = random.uniform(0.10, 0.30) * mult         # wings are fragile
-        susp = random.uniform(0.05, 0.20) * mult
 
     car.aero_damage += aero
     car.suspension_damage += susp
@@ -175,6 +184,49 @@ def _make_incident(car, lap, cause):
     retirement = (severity == "major" and random.random() < MAJOR_DNF_CHANCE)
     return Incident(car.driver.name, lap, cause, severity,
                     time_lost, aero, susp, retirement)
+
+
+def _collide(chaser, defender, lap):
+    """A failed move turns into CONTACT -- a two-car event.
+
+    Both cars take damage; the chaser (who threw the move) takes the full share,
+    the defender a smaller one (scaled up to a full share for a major shunt). A
+    major hit rolls a DNF for each car independently, so a really big one can take
+    the chaser, the defender, or both. The defender is wounded retroactively: time
+    and damage are added to a car already processed this lap, which the end-of-lap
+    standings pick up.
+
+    Returns (incident, chaser_time_lost, chaser_retired).
+    """
+    severity = _roll_severity()
+    mult = SEVERITY_MULT[severity]
+
+    def harm(bias):
+        return (random.uniform(0.5, 2.0) * mult * bias,    # time lost
+                random.uniform(0.10, 0.30) * mult * bias,  # aero
+                random.uniform(0.05, 0.20) * mult * bias)  # suspension
+
+    c_time, c_aero, c_susp = harm(1.0)
+    d_time, d_aero, d_susp = harm(DEFENDER_SHARE[severity])
+
+    chaser.aero_damage += c_aero
+    chaser.suspension_damage += c_susp
+    defender.aero_damage += d_aero
+    defender.suspension_damage += d_susp
+    defender.total_time += d_time              # the passed car loses time too
+
+    chaser_out = defender_out = False
+    if severity == "major":
+        chaser_out = random.random() < COLLISION_DNF_CHANCE
+        defender_out = random.random() < COLLISION_DNF_CHANCE
+
+    if defender_out and not defender.retired:
+        defender.retired, defender.retired_on_lap = True, lap
+
+    inc = Incident(chaser.driver.name, lap, "collision", severity,
+                   c_time, c_aero, c_susp, chaser_out,
+                   other_name=defender.driver.name, other_retired=defender_out)
+    return inc, c_time, chaser_out
 
 
 def _standings(cars):
@@ -250,21 +302,27 @@ def run_race(starting_grid, laps, difficulty=0.10):
             # 4. Everyone else may catch the car ahead and try a move
             ahead = running[i - 1]
             provisional = old_total + lap_time + time_lost
-            if provisional < ahead.total_time + DIRTY_AIR_GAP:
-                if attempt_overtake(car, ahead, difficulty):
-                    car.total_time = provisional
-                else:
-                    # The move didn't come off -- risk of contact, worse if clumsy
-                    if random.random() < CONTACT_CHANCE * (1 - car.driver.racecraft):
-                        inc = _make_incident(car, lap, "contact")
-                        incidents.append(inc)
-                        time_lost += inc.time_lost
-                        if inc.retirement:
-                            _retire(car, lap, old_total, lap_time, time_lost)
-                            continue
-                    car.total_time = ahead.total_time + HELD_UP_GAP + time_lost
-            else:
+
+            if ahead.retired or provisional >= ahead.total_time + DIRTY_AIR_GAP:
+                # Clear track ahead -- or the car ahead has already crashed out -- run own pace
                 car.total_time = provisional
+            elif attempt_overtake(car, ahead, difficulty):
+                car.total_time = provisional                      # move stuck -- through cleanly
+            else:
+                # The move didn't come off -- risk of contact, worse if clumsy
+                if random.random() < CONTACT_CHANCE * (1 - car.driver.racecraft):
+                    inc, lost, chaser_out = _collide(car, ahead, lap)
+                    incidents.append(inc)
+                    time_lost += lost
+                    if chaser_out:
+                        _retire(car, lap, old_total, lap_time, time_lost)
+                        continue
+                    if ahead.retired:
+                        car.total_time = old_total + lap_time + time_lost   # knocked them out -- road clear
+                    else:
+                        car.total_time = ahead.total_time + HELD_UP_GAP + time_lost
+                else:
+                    car.total_time = ahead.total_time + HELD_UP_GAP + time_lost
 
             car.last_lap = car.total_time - old_total
 

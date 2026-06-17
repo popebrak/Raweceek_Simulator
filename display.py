@@ -7,7 +7,6 @@ CAUSE_PHRASE = {
     "off-track": "runs wide",
     "kerb": "is launched over a sausage kerb",
     "wall": "clips the wall",
-    "contact": "makes contact",
 }
 
 
@@ -63,6 +62,24 @@ def render_incident(inc):
         return f"  >> {inc.driver_name} is hopelessly out of their depth -- throws it away, and OUT!"
     if inc.cause == "damage failure":
         return f"  >> {inc.driver_name}'s earlier damage finally lets go -- OUT OF THE RACE!"
+    if inc.cause == "collision":
+        other = inc.other_name
+        if inc.retirement and inc.other_retired:
+            return (f"  >> CONTACT! {inc.driver_name} and {other} collide -- "
+                    f"a {inc.severity} hit, and they are BOTH OUT OF THE RACE!")
+        if inc.other_retired:
+            return (f"  >> {inc.driver_name} lunges, tags {other} into a spin -- "
+                    f"{other} is OUT, {inc.driver_name} limps on!")
+        if inc.retirement:
+            return (f"  >> {inc.driver_name} clatters into {other} and comes off worst -- "
+                    f"{inc.driver_name} is OUT!")
+        bits = []
+        if inc.aero_added > 0.01:
+            bits.append(f"aero +{inc.aero_added:.2f}")
+        if inc.suspension_added > 0.01:
+            bits.append(f"susp +{inc.suspension_added:.2f}")
+        dmg = f" [{', '.join(bits)}]" if bits else ""
+        return f"  >> {inc.driver_name} makes contact with {other} ({inc.severity}) -- both pick up damage{dmg}"
     phrase = CAUSE_PHRASE.get(inc.cause, inc.cause)
     if inc.retirement:
         return f"  >> {inc.driver_name} {phrase} -- a {inc.severity} one -- AND THAT'S THE END OF THEIR RACE!"
