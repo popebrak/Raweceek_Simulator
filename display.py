@@ -19,7 +19,7 @@ def format_time(seconds):
 def print_timing_sheet(results):
     """results: list of (driver, lap, qualified) sorted fastest first."""
     print("\n  QUALIFYING RESULTS")
-    print("  " + "-" * 56)
+    print("  " + "-" * 62)
     pole_time = results[0][1]
     cutoff = pole_time * QUALIFYING_CUTOFF
     position = 0
@@ -28,10 +28,10 @@ def print_timing_sheet(results):
             position += 1
             gap = lap - pole_time
             gap_str = "POLE" if position == 1 else f"+{gap:.3f}"
-            print(f"  P{position:<2} {driver.name:<19} {driver.team:<13} "
+            print(f"  P{position:<2} {driver.name:<21} {driver.team:<15} "
                   f"{format_time(lap)}  {gap_str}")
         else:
-            print(f"  --  {driver.name:<19} {driver.team:<13} "
+            print(f"  --  {driver.name:<21} {driver.team:<15} "
                   f"{format_time(lap)}  DNQ (outside 107%)")
     print(f"\n  107% cutoff: {format_time(cutoff)}   (pole {format_time(pole_time)})")
     print()
@@ -47,18 +47,20 @@ def _damage_tag(s):
 
 
 def render_standings(standings, lap, total_laps):
-    lines = [f"  LAP {lap}/{total_laps}", "  " + "-" * 60]
+    lines = [f"  LAP {lap}/{total_laps}", "  " + "-" * 66]
     for s in standings:
         if s.retired:
-            lines.append(f"  --  {s.name:<19} {s.team:<13} OUT  (DNF, lap {s.retired_on_lap})")
+            lines.append(f"  --  {s.name:<21} {s.team:<15} OUT  (DNF, lap {s.retired_on_lap})")
             continue
         gap_str = "LEADER" if s.position == 1 else f"+{s.gap_to_leader:.3f}"
-        lines.append(f"  P{s.position:<2} {s.name:<19} {s.team:<13} "
+        lines.append(f"  P{s.position:<2} {s.name:<21} {s.team:<15} "
                      f"{gap_str:<10} last {s.last_lap:6.3f}{_damage_tag(s)}")
     return "\n".join(lines)
 
 
 def render_incident(inc):
+    if inc.cause == "over the limit":
+        return f"  >> {inc.driver_name} is hopelessly out of their depth -- throws it away, and OUT!"
     if inc.cause == "damage failure":
         return f"  >> {inc.driver_name}'s earlier damage finally lets go -- OUT OF THE RACE!"
     phrase = CAUSE_PHRASE.get(inc.cause, inc.cause)
@@ -76,12 +78,12 @@ def render_incident(inc):
 
 
 def render_result(standings):
-    lines = ["  FINAL CLASSIFICATION", "  " + "-" * 60]
+    lines = ["  FINAL CLASSIFICATION", "  " + "-" * 66]
     finishers = [s for s in standings if not s.retired]
     winner_time = finishers[0].total_time if finishers else 0.0
     for s in standings:
         if s.retired:
-            lines.append(f"  --  {s.name:<19} {s.team:<13} DNF (lap {s.retired_on_lap}, "
+            lines.append(f"  --  {s.name:<21} {s.team:<15} DNF (lap {s.retired_on_lap}, "
                          f"from P{s.grid_position})")
             continue
         gap = s.total_time - winner_time
@@ -89,6 +91,6 @@ def render_result(standings):
         moved = s.grid_position - s.position
         move_str = f"UP {moved}" if moved > 0 else f"DOWN {-moved}" if moved < 0 else "--"
         tag = "  [damaged]" if s.damage > 0.005 else ""
-        lines.append(f"  P{s.position:<2} {s.name:<19} {s.team:<13} "
+        lines.append(f"  P{s.position:<2} {s.name:<21} {s.team:<15} "
                      f"{format_time(s.total_time):<10} {gap_str:<9} (from P{s.grid_position}, {move_str}){tag}")
     return "\n".join(lines)

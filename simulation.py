@@ -26,6 +26,7 @@ PACE_WEIGHT = 0.6
 RACECRAFT_WEIGHT = 0.25
 
 QUALIFYING_CUTOFF = 1.07        # 107% rule: slower than this multiple of pole = DNQ
+RACECRAFT_FLOOR = 0.05          # at/below this, a driver is hopeless: a guaranteed race-ending error
 
 # --- Incident / attrition knobs (mistake chances scale with 1 - racecraft) ---
 # Tuned to modern-F1 attrition: ~0.8 retirements per race over this 10-car, 20-lap
@@ -49,6 +50,7 @@ class CarState:
     suspension_damage: float = 0.0    # persistent per-lap penalty: mechanical
     retired: bool = False
     retired_on_lap: int = 0
+    doomed_lap: int = 0               # >0 if hopeless racecraft has marked a guaranteed DNF lap
 
     @property
     def damage(self):
@@ -197,6 +199,13 @@ def _retire(car, lap, old_total, lap_time, time_lost):
 def run_race(starting_grid, laps, difficulty=0.10):
     cars = [CarState(driver, grid_position=i + 1)
             for i, driver in enumerate(starting_grid)]
+
+    # Hopeless racecraft is a sentence, not a tendency: pick the lap on which the
+    # inevitable race-ending mistake arrives. (They still flail their way there.)
+    for car in cars:
+        if car.driver.racecraft <= RACECRAFT_FLOOR:
+            car.doomed_lap = random.randint(1, laps)
+
     history = []
 
     for lap in range(1, laps + 1):
@@ -207,6 +216,13 @@ def run_race(starting_grid, laps, difficulty=0.10):
             old_total = car.total_time
             lap_time = simulate_lap(car.driver) + car.damage   # both damages tax the lap
             time_lost = 0.0
+
+            # 0. Hopeless racecraft: the inevitable, race-ending error finally arrives
+            if car.doomed_lap and lap >= car.doomed_lap:
+                car.retired, car.retired_on_lap = True, lap
+                incidents.append(Incident(car.driver.name, lap, "over the limit",
+                                          "major", 0.0, 0.0, 0.0, True))
+                continue
 
             # 1. Delayed failure: carried damage can finally let go, laps later
             if car.damage > 0 and random.random() < DAMAGE_FAILURE_FACTOR * car.damage:
