@@ -43,6 +43,13 @@ DAMAGE_FAILURE_FACTOR = 0.008   # per-lap DNF risk per 1.0s/lap of carried damag
 SEVERITY_SPLIT = (0.58, 0.23)   # P(minor), P(moderate); remainder is major
 SEVERITY_MULT = {"minor": 1.0, "moderate": 2.2, "major": 4.5}
 
+# The per-lap chances above were calibrated against a 40-lap race. Real circuits
+# run anywhere from 44 (Spa) to 78 (Monaco) laps, so we scale the per-lap rates by
+# BASELINE_LAPS / laps to keep expected attrition PER RACE roughly constant.
+# Length then stops inflating the carnage, and the TRACK (its overtaking
+# difficulty) becomes what actually makes one circuit messier than another.
+BASELINE_LAPS = 40
+
 # Collisions take two. A big (major) hit can pitch either car out -- and rolling
 # it for each independently means a really big one sometimes takes BOTH. The car
 # defending takes a smaller share of a glancing blow, but a major shunt wrecks both.
@@ -99,6 +106,7 @@ class Incident:
     retirement: bool
     other_name: str = ""        # the other car in a collision ("" for solo incidents)
     other_retired: bool = False # did the OTHER car retire in this collision
+    location: str = ""          # named corner where it happened ("" if track-agnostic)
 
 
 @dataclass
@@ -249,7 +257,29 @@ def _retire(car, lap, old_total, lap_time, time_lost):
     car.last_lap = car.total_time - old_total
 
 
-def run_race(starting_grid, laps, difficulty=0.10):
+def _pick_corner(track, overtaking=False):
+    """Where did it happen? Passing moves favour the track's overtaking spots;
+    solo errors can happen anywhere. Returns "" when there's no track."""
+    if track is None or not track.corners:
+        return ""
+    pool = [c.name for c in track.corners if c.overtaking] if overtaking else []
+    if not pool:                                   # no OT corners, or a solo error
+        pool = [c.name for c in track.corners]
+    return random.choice(pool)
+
+
+def run_race(starting_grid, track=None, laps=None, difficulty=None):
+    # The track supplies the race distance and how hard it is to pass; either can
+    # still be overridden by hand (handy for testing). Falls back to the old
+    # defaults when no track is given, so existing callers keep working.
+    if laps is None:
+        laps = track.laps if track is not None else 40
+    if difficulty is None:
+        difficulty = track.overtaking_difficulty if track is not None else 0.10
+
+    # Keep per-race attrition steady regardless of how long the race is.
+    length_scale = BASELINE_LAPS / laps
+
     cars = [CarState(driver, grid_position=i + 1)
             for i, driver in enumerate(starting_grid)]
 
@@ -274,19 +304,21 @@ def run_race(starting_grid, laps, difficulty=0.10):
             if car.doomed_lap and lap >= car.doomed_lap:
                 car.retired, car.retired_on_lap = True, lap
                 incidents.append(Incident(car.driver.name, lap, "over the limit",
-                                          "major", 0.0, 0.0, 0.0, True))
+                                          "major", 0.0, 0.0, 0.0, True,
+                                          location=_pick_corner(track)))
                 continue
 
             # 1. Delayed failure: carried damage can finally let go, laps later
-            if car.damage > 0 and random.random() < DAMAGE_FAILURE_FACTOR * car.damage:
+            if car.damage > 0 and random.random() < DAMAGE_FAILURE_FACTOR * length_scale * car.damage:
                 car.retired, car.retired_on_lap = True, lap
                 incidents.append(Incident(car.driver.name, lap, "damage failure",
                                           "major", 0.0, 0.0, 0.0, True))
                 continue
 
             # 2. Solo mistake: a lone error, far likelier for low-racecraft drivers
-            if random.random() < SOLO_MISTAKE_CHANCE * (1 - car.driver.racecraft):
+            if random.random() < SOLO_MISTAKE_CHANCE * length_scale * (1 - car.driver.racecraft):
                 inc = _make_incident(car, lap, _solo_cause())
+                inc.location = _pick_corner(track)
                 incidents.append(inc)
                 time_lost += inc.time_lost
                 if inc.retirement:
@@ -310,8 +342,9 @@ def run_race(starting_grid, laps, difficulty=0.10):
                 car.total_time = provisional                      # move stuck -- through cleanly
             else:
                 # The move didn't come off -- risk of contact, worse if clumsy
-                if random.random() < CONTACT_CHANCE * (1 - car.driver.racecraft):
+                if random.random() < CONTACT_CHANCE * length_scale * (1 - car.driver.racecraft):
                     inc, lost, chaser_out = _collide(car, ahead, lap)
+                    inc.location = _pick_corner(track, overtaking=True)
                     incidents.append(inc)
                     time_lost += lost
                     if chaser_out:
@@ -339,6 +372,7 @@ def run_race(starting_grid, laps, difficulty=0.10):
 
 @dataclass
 class RaceSummary:
+    circuit: str               # where the race was held ("" if unknown)
     total_laps: int
     starters: int
     finishers: int
@@ -351,11 +385,11 @@ class RaceSummary:
     lead_changes: int
     fastest_lap_driver: str
     fastest_lap_time: float
-    retirements: list          # [(name, lap, cause)] -- raw cause, words live in display
-    double_dnfs: list          # [(chaser, defender, lap)] from major collisions
+    retirements: list          # [(name, lap, cause, location)] -- words live in display
+    double_dnfs: list          # [(chaser, defender, lap, location)] from major collisions
 
 
-def summarize_race(history):
+def summarize_race(history, track=None):
     """Distil a finished race `history` into a RaceSummary of key facts."""
     final = history[-1].standings
     total_laps = len(history)
@@ -400,15 +434,16 @@ def summarize_race(history):
     for rep in history:
         for inc in rep.incidents:
             if inc.retirement and inc.driver_name not in retirements:
-                retirements[inc.driver_name] = (rep.lap, inc.cause)
+                retirements[inc.driver_name] = (rep.lap, inc.cause, inc.location)
             if inc.other_retired and inc.other_name not in retirements:
-                retirements[inc.other_name] = (rep.lap, "collision")
+                retirements[inc.other_name] = (rep.lap, "collision", inc.location)
             if inc.cause == "collision" and inc.retirement and inc.other_retired:
-                double_dnfs.append((inc.driver_name, inc.other_name, rep.lap))
-    retire_list = sorted(((n, lap, cause) for n, (lap, cause) in retirements.items()),
+                double_dnfs.append((inc.driver_name, inc.other_name, rep.lap, inc.location))
+    retire_list = sorted(((n, lap, cause, loc) for n, (lap, cause, loc) in retirements.items()),
                          key=lambda t: t[1])
 
     return RaceSummary(
+        circuit=track.circuit if track is not None else "",
         total_laps=total_laps, starters=starters, finishers=finishers,
         winner=winner.name if winner else "(no finishers)",
         team=winner.team if winner else "",

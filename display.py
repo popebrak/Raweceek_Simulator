@@ -89,30 +89,37 @@ def render_standings(standings, lap, total_laps):
 
 
 # --- COMMENTARY: the spoken voice. Pure prose, never numbers. ----------------
+def _at(loc):
+    """' at the Parabolica' if we know the corner, '' if we don't."""
+    return f" at {loc}" if loc else ""
+
+
 def render_commentary(inc):
     """One speakable line of commentary for an incident. No telemetry, ever."""
+    at = _at(inc.location)
     if inc.cause == "over the limit":
-        return f"  >> {inc.driver_name} is hopelessly out of their depth -- throws it away, and OUT!"
+        return f"  >> {inc.driver_name} is hopelessly out of their depth -- throws it away{at}, and OUT!"
     if inc.cause == "damage failure":
         return f"  >> {inc.driver_name}'s earlier damage finally lets go -- OUT OF THE RACE!"
     if inc.cause == "collision":
         other = inc.other_name
         if inc.retirement and inc.other_retired:
-            return (f"  >> CONTACT! {inc.driver_name} and {other} collide -- "
-                    f"a {inc.severity} hit, and they are BOTH OUT OF THE RACE!")
+            return (f"  >> CONTACT{at}! {inc.driver_name} and {other} collide -- "
+                    f"a {inc.severity} one, and they are BOTH OUT OF THE RACE!")
         if inc.other_retired:
-            return (f"  >> {inc.driver_name} lunges, tags {other} into a spin -- "
-                    f"{other} is OUT, {inc.driver_name} limps on!")
+            return (f"  >> {inc.driver_name} dives down the inside of {other}{at} -- "
+                    f"{other} is tipped into a spin and OUT, {inc.driver_name} limps on!")
         if inc.retirement:
-            return (f"  >> {inc.driver_name} clatters into {other} and comes off worst -- "
-                    f"{inc.driver_name} is OUT!")
+            return (f"  >> {inc.driver_name} throws it up the inside of {other}{at} and comes "
+                    f"off worst -- {inc.driver_name} is OUT!")
         word = CONTACT_WORD[inc.severity]
-        return f"  >> {inc.driver_name} makes {word} contact with {other} -- both keep going"
+        return (f"  >> {inc.driver_name} dives down the inside of {other}{at} -- "
+                f"side by side... and they make {word} contact, both keep going!")
     # solo: off-track / kerb / wall
     phrase = CAUSE_PHRASE.get(inc.cause, inc.cause)
     if inc.retirement:
-        return f"  >> {inc.driver_name} {phrase} -- a {inc.severity} one -- AND THAT'S THE END OF THEIR RACE!"
-    return f"  >> {inc.driver_name} {phrase} -- {SOLO_FLOURISH[inc.severity]}"
+        return f"  >> {inc.driver_name} {phrase}{at} -- a {inc.severity} one -- AND THAT'S THE END OF THEIR RACE!"
+    return f"  >> {inc.driver_name} {phrase}{at} -- {SOLO_FLOURISH[inc.severity]}"
 
 
 # --- TELEMETRY: the fiddly bits. Numbers live HERE, not in commentary. -------
@@ -161,11 +168,12 @@ def render_summary(summary):
     lines = ["  POST-RACE WRAP-UP", "  " + "-" * 66]
 
     # The headline.
+    where = f" at {s.circuit}" if s.circuit else ""
     if s.winner_from == 1:
-        win = (f"{s.winner} converts pole into victory for {s.team}, "
+        win = (f"{s.winner} converts pole into victory for {s.team}{where}, "
                f"leading from lights to flag.")
     else:
-        win = (f"{s.winner} wins for {s.team}, climbing from P{s.winner_from} on the grid.")
+        win = (f"{s.winner} wins for {s.team}{where}, climbing from P{s.winner_from} on the grid.")
     lines.append("  " + win)
 
     # The fight at the front.
@@ -193,12 +201,14 @@ def render_summary(summary):
         lines.append(f"  A clean race -- all {s.finishers} starters saw the flag.")
     else:
         lines.append(f"  {s.finishers} of {s.starters} cars made the finish.")
-        for name, lap, cause in s.retirements:
+        for name, lap, cause, loc in s.retirements:
             phrase = RETIRE_PHRASE.get(cause, cause)
-            lines.append(f"     - {name}: {phrase} (lap {lap})")
-        for a, b, lap in s.double_dnfs:
+            where = f" at {loc}" if loc and cause != "damage failure" else ""
+            lines.append(f"     - {name}: {phrase}{where} (lap {lap})")
+        for a, b, lap, loc in s.double_dnfs:
+            where = f" at {loc}" if loc else ""
             lines.append(f"  The biggest flashpoint: {a} and {b} taking each "
-                         f"other out on lap {lap}.")
+                         f"other out{where} on lap {lap}.")
 
     # Fastest lap (approximate -- see note in simulation.summarize_race).
     if s.fastest_lap_driver:
@@ -206,3 +216,14 @@ def render_summary(summary):
                      f"a {format_time(s.fastest_lap_time)}.")
 
     return "\n".join(lines)
+
+
+def track_banner(track):
+    """The pre-race title card: which Grand Prix, where, how long, what to expect."""
+    return "\n".join([
+        "  " + "=" * 62,
+        f"  {track.name.upper()}",
+        f"  {track.circuit}, {track.country}   --   {track.laps} laps",
+        f"  {track.character}",
+        "  " + "=" * 62,
+    ])
