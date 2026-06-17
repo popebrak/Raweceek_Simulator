@@ -329,3 +329,92 @@ def run_race(starting_grid, laps, difficulty=0.10):
         history.append(LapReport(lap, _standings(cars), incidents))
 
     return history
+
+
+# --- Post-race analysis ------------------------------------------------------
+# This reads the finished `history` and distils the story out of it. It is
+# ANALYSIS, not presentation: it returns facts (names, laps, causes), and the
+# display layer decides the words. The same "scan the frames, pull out events"
+# move is what the live commentary engine will be built on.
+
+@dataclass
+class RaceSummary:
+    total_laps: int
+    starters: int
+    finishers: int
+    winner: str
+    team: str
+    winner_from: int           # grid position the winner started from
+    pole_sitter: str
+    podium: list               # [(position, name, team)]
+    drive_of_the_day: tuple    # (name, places_gained) or None
+    lead_changes: int
+    fastest_lap_driver: str
+    fastest_lap_time: float
+    retirements: list          # [(name, lap, cause)] -- raw cause, words live in display
+    double_dnfs: list          # [(chaser, defender, lap)] from major collisions
+
+
+def summarize_race(history):
+    """Distil a finished race `history` into a RaceSummary of key facts."""
+    final = history[-1].standings
+    total_laps = len(history)
+    starters = len(final)
+    runners = [s for s in final if not s.retired]
+    finishers = len(runners)
+
+    winner = runners[0] if runners else None
+    pole = next((s for s in final if s.grid_position == 1), None)
+    podium = [(s.position, s.name, s.team) for s in runners[:3]]
+
+    # Drive of the day: most places gained among the finishers.
+    dotd, best_gain = None, 0
+    for s in runners:
+        gain = s.grid_position - s.position
+        if gain > best_gain:
+            best_gain, dotd = gain, (s.name, gain)
+
+    # Lead changes: walk the per-lap leader, seeded from the pole-sitter.
+    lead_changes = 0
+    prev_leader = pole.name if pole else None
+    for rep in history:
+        leader = rep.standings[0].name if rep.standings else None
+        if leader and leader != prev_leader:
+            lead_changes += 1
+            prev_leader = leader
+
+    # Fastest lap. APPROXIMATE: the engine folds traffic (dirty air, being held
+    # up) into last_lap, so this is the best clean-ish lap seen, not a true
+    # isolated flyer. A proper version means recording each car's raw pace lap
+    # separately in run_race -- a good, well-contained future tweak.
+    fl_driver, fl_time = "", float("inf")
+    for rep in history:
+        for s in rep.standings:
+            if not s.retired and 80.0 < s.last_lap < 100.0 and s.last_lap < fl_time:
+                fl_time, fl_driver = s.last_lap, s.name
+    if not fl_driver:
+        fl_time = 0.0
+
+    # Retirements + double-DNF flashpoints, read off the incident feed.
+    retirements, double_dnfs = {}, []
+    for rep in history:
+        for inc in rep.incidents:
+            if inc.retirement and inc.driver_name not in retirements:
+                retirements[inc.driver_name] = (rep.lap, inc.cause)
+            if inc.other_retired and inc.other_name not in retirements:
+                retirements[inc.other_name] = (rep.lap, "collision")
+            if inc.cause == "collision" and inc.retirement and inc.other_retired:
+                double_dnfs.append((inc.driver_name, inc.other_name, rep.lap))
+    retire_list = sorted(((n, lap, cause) for n, (lap, cause) in retirements.items()),
+                         key=lambda t: t[1])
+
+    return RaceSummary(
+        total_laps=total_laps, starters=starters, finishers=finishers,
+        winner=winner.name if winner else "(no finishers)",
+        team=winner.team if winner else "",
+        winner_from=winner.grid_position if winner else 0,
+        pole_sitter=pole.name if pole else "",
+        podium=podium, drive_of_the_day=dotd, lead_changes=lead_changes,
+        fastest_lap_driver=fl_driver, fastest_lap_time=fl_time,
+        retirements=retire_list, double_dnfs=double_dnfs,
+    )

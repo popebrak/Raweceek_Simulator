@@ -11,16 +11,16 @@ import time
 from collections import deque
 
 from drivers import GRID
-from simulation import run_qualifying, run_race
-from display import (print_timing_sheet, render_standings,
-                     render_incident, render_result)
+from simulation import run_qualifying, run_race, summarize_race
+from display import (print_timing_sheet, render_standings, render_commentary,
+                     render_telemetry, render_result, render_summary)
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
 DIVIDER = "  " + "-" * 60
 
 
-def play_race(history, speed):
+def play_race(history, speed, show_telemetry=False):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
 
@@ -39,8 +39,16 @@ def play_race(history, speed):
 
     for report in history:
         lap_budget = max(report.standings[0].last_lap, 0.0) / speed
-        new_lines = [f"  L{report.lap:>2}  {render_incident(inc).strip()}"
-                     for inc in report.incidents]
+
+        # COMMENTARY is the spoken voice; TELEMETRY (the numbers) is an optional,
+        # separate stream that never contaminates the feed a TTS engine reads.
+        new_lines = []
+        for inc in report.incidents:
+            new_lines.append(f"  L{report.lap:>2}  {render_commentary(inc).strip()}")
+            if show_telemetry:
+                tele = render_telemetry(inc).strip()
+                if tele:
+                    new_lines.append(f"        {tele}")
 
         if new_lines:
             # Tick the new calls in one at a time, spread across the lap, so the
@@ -56,9 +64,12 @@ def play_race(history, speed):
 
     print(CLEAR_SCREEN, end="")
     print(render_result(history[-1].standings))
+    print()
+    print(render_summary(summarize_race(history)))
 
 
-def run_weekend(laps=40, difficulty=0.10, speed=20.0, grid_pause=5.0):
+def run_weekend(laps=40, difficulty=0.10, speed=20.0, grid_pause=5.0,
+                show_telemetry=False):
     quali_results = run_qualifying(GRID)
     print_timing_sheet(quali_results)
 
@@ -68,8 +79,9 @@ def run_weekend(laps=40, difficulty=0.10, speed=20.0, grid_pause=5.0):
     # Let the qualifying sheet breathe before the race starts.
     print("\n  Lights out -- here we go!\n")
     time.sleep(grid_pause)
-    play_race(history, speed=speed)
+    play_race(history, speed=speed, show_telemetry=show_telemetry)
 
 
 if __name__ == "__main__":
-    run_weekend(laps=40, difficulty=0.10, speed=20.0, grid_pause=5.0)
+    run_weekend(laps=40, difficulty=0.10, speed=20.0, grid_pause=5.0,
+                show_telemetry=False)

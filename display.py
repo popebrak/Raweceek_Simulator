@@ -1,4 +1,17 @@
-"""Presentation -- builds strings from standings and incidents."""
+"""Presentation -- builds strings from standings and incidents.
+
+Two distinct jobs live here, and they are kept apart on purpose:
+
+  * COMMENTARY  (render_commentary) -- the spoken voice of the race. Pure prose,
+    no numbers, no jargon. This is what a text-to-speech engine will read aloud,
+    so it must never contain "+0.22/lap". Severity is expressed in words.
+
+  * TELEMETRY   (render_telemetry, _damage_tag) -- the fiddly engineering bits:
+    seconds lost, aero/suspension damage. Useful, but for the timing screen and
+    debugging, NOT for the commentary feed. Kept separate so the two never blur.
+
+  * WRAP-UP     (render_summary) -- the post-race story, built from a RaceSummary.
+"""
 
 from simulation import QUALIFYING_CUTOFF
 
@@ -7,6 +20,24 @@ CAUSE_PHRASE = {
     "off-track": "runs wide",
     "kerb": "is launched over a sausage kerb",
     "wall": "clips the wall",
+}
+
+# Severity, said the way a commentator would say it (no numbers).
+SOLO_FLOURISH = {
+    "minor":    "but gathers it up and carries on",
+    "moderate": "a scruffy moment, and that will have cost some time",
+    "major":    "a big one -- that could haunt the rest of their race",
+}
+CONTACT_WORD = {"minor": "light", "moderate": "firm", "major": "heavy"}
+
+# How a retirement reads in the wrap-up, by raw cause (analysis stays wordless).
+RETIRE_PHRASE = {
+    "collision":      "out in a collision",
+    "wall":           "into the wall",
+    "kerb":           "broken over a kerb",
+    "off-track":      "off and beached",
+    "damage failure": "expired from earlier damage",
+    "over the limit": "spun out of their depth",
 }
 
 
@@ -57,7 +88,9 @@ def render_standings(standings, lap, total_laps):
     return "\n".join(lines)
 
 
-def render_incident(inc):
+# --- COMMENTARY: the spoken voice. Pure prose, never numbers. ----------------
+def render_commentary(inc):
+    """One speakable line of commentary for an incident. No telemetry, ever."""
     if inc.cause == "over the limit":
         return f"  >> {inc.driver_name} is hopelessly out of their depth -- throws it away, and OUT!"
     if inc.cause == "damage failure":
@@ -73,25 +106,33 @@ def render_incident(inc):
         if inc.retirement:
             return (f"  >> {inc.driver_name} clatters into {other} and comes off worst -- "
                     f"{inc.driver_name} is OUT!")
-        bits = []
-        if inc.aero_added > 0.01:
-            bits.append(f"aero +{inc.aero_added:.2f}")
-        if inc.suspension_added > 0.01:
-            bits.append(f"susp +{inc.suspension_added:.2f}")
-        dmg = f" [{', '.join(bits)}]" if bits else ""
-        return f"  >> {inc.driver_name} makes contact with {other} ({inc.severity}) -- both pick up damage{dmg}"
+        word = CONTACT_WORD[inc.severity]
+        return f"  >> {inc.driver_name} makes {word} contact with {other} -- both keep going"
+    # solo: off-track / kerb / wall
     phrase = CAUSE_PHRASE.get(inc.cause, inc.cause)
     if inc.retirement:
         return f"  >> {inc.driver_name} {phrase} -- a {inc.severity} one -- AND THAT'S THE END OF THEIR RACE!"
-    effects = []
+    return f"  >> {inc.driver_name} {phrase} -- {SOLO_FLOURISH[inc.severity]}"
+
+
+# --- TELEMETRY: the fiddly bits. Numbers live HERE, not in commentary. -------
+def render_telemetry(inc):
+    """The engineering detail for one incident: time lost, damage picked up.
+
+    Returns "" when there is nothing numeric worth showing (e.g. a retirement,
+    where the car's race is simply over). This is for the timing screen / a debug
+    stream -- deliberately NOT mixed into the spoken commentary.
+    """
+    if inc.retirement or inc.other_retired:
+        return ""
+    bits = []
     if inc.time_lost > 0.05:
-        effects.append(f"loses {inc.time_lost:.1f}s")
+        bits.append(f"lost {inc.time_lost:.1f}s")
     if inc.aero_added > 0.01:
-        effects.append(f"aero +{inc.aero_added:.2f}/lap")
+        bits.append(f"aero +{inc.aero_added:.2f}/lap")
     if inc.suspension_added > 0.01:
-        effects.append(f"suspension +{inc.suspension_added:.2f}/lap")
-    detail = "; ".join(effects) if effects else "but gets away with it"
-    return f"  >> {inc.driver_name} {phrase} ({inc.severity}) -- {detail}"
+        bits.append(f"susp +{inc.suspension_added:.2f}/lap")
+    return f"  ~ {inc.driver_name}: {', '.join(bits)}" if bits else ""
 
 
 def render_result(standings):
@@ -110,4 +151,58 @@ def render_result(standings):
         tag = "  [damaged]" if s.damage > 0.005 else ""
         lines.append(f"  P{s.position:<2} {s.name:<21} {s.team:<15} "
                      f"{format_time(s.total_time):<10} {gap_str:<9} (from P{s.grid_position}, {move_str}){tag}")
+    return "\n".join(lines)
+
+
+# --- WRAP-UP: the post-race story, built from a RaceSummary. -----------------
+def render_summary(summary):
+    """Turn a RaceSummary into a spoken-style post-race wrap-up (TTS-ready)."""
+    s = summary
+    lines = ["  POST-RACE WRAP-UP", "  " + "-" * 66]
+
+    # The headline.
+    if s.winner_from == 1:
+        win = (f"{s.winner} converts pole into victory for {s.team}, "
+               f"leading from lights to flag.")
+    else:
+        win = (f"{s.winner} wins for {s.team}, climbing from P{s.winner_from} on the grid.")
+    lines.append("  " + win)
+
+    # The fight at the front.
+    if s.lead_changes == 0:
+        lines.append(f"  The lead never changed hands all {s.total_laps} laps.")
+    elif s.lead_changes == 1:
+        lines.append(f"  The lead changed hands once across the {s.total_laps} laps.")
+    else:
+        lines.append(f"  A proper scrap up front -- the lead changed hands "
+                     f"{s.lead_changes} times.")
+
+    # The podium.
+    if len(s.podium) >= 3:
+        p2, p3 = s.podium[1], s.podium[2]
+        lines.append(f"  {p2[1]} ({p2[2]}) and {p3[1]} ({p3[2]}) completed the podium.")
+
+    # Drive of the day.
+    if s.drive_of_the_day:
+        name, gained = s.drive_of_the_day
+        lines.append(f"  Drive of the day goes to {name}, up {gained} "
+                     f"place{'s' if gained != 1 else ''} from where they started.")
+
+    # The casualty list.
+    if not s.retirements:
+        lines.append(f"  A clean race -- all {s.finishers} starters saw the flag.")
+    else:
+        lines.append(f"  {s.finishers} of {s.starters} cars made the finish.")
+        for name, lap, cause in s.retirements:
+            phrase = RETIRE_PHRASE.get(cause, cause)
+            lines.append(f"     - {name}: {phrase} (lap {lap})")
+        for a, b, lap in s.double_dnfs:
+            lines.append(f"  The biggest flashpoint: {a} and {b} taking each "
+                         f"other out on lap {lap}.")
+
+    # Fastest lap (approximate -- see note in simulation.summarize_race).
+    if s.fastest_lap_driver:
+        lines.append(f"  Fastest lap of the race: {s.fastest_lap_driver}, "
+                     f"a {format_time(s.fastest_lap_time)}.")
+
     return "\n".join(lines)
