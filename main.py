@@ -1,6 +1,14 @@
-"""Entry point -- runs a race weekend and plays the race back in real time."""
+"""Entry point -- runs a race weekend and plays the race back in real time.
 
+The race plays back lap by lap. The standings board ("the flagpole") sits at the
+top and refreshes each lap; below it, a COMMENTARY feed buffers -- new calls tick
+in as they happen and the recent ones stay on screen, so you can follow the story
+of the race as it unfolds instead of each line flashing past in a single lap.
+"""
+
+import sys
 import time
+from collections import deque
 
 from drivers import GRID
 from simulation import run_qualifying, run_race
@@ -8,33 +16,60 @@ from display import (print_timing_sheet, render_standings,
                      render_incident, render_result)
 
 CLEAR_SCREEN = "\033[H\033[J"
+COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
+DIVIDER = "  " + "-" * 60
 
 
 def play_race(history, speed):
     total_laps = len(history)
-    for report in history:
+    commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
+
+    def draw(report):
         print(CLEAR_SCREEN, end="")
         print(render_standings(report.standings, report.lap, total_laps))
-        for incident in report.incidents:
-            print(render_incident(incident))
-        leader_lap_time = report.standings[0].last_lap
-        time.sleep(max(leader_lap_time, 0.0) / speed)
+        print()                                   # a line of space before the commentary
+        print(DIVIDER)
+        print("  COMMENTARY")
+        if commentary:
+            for line in commentary:
+                print(line)
+        else:
+            print("  (clean air so far...)")
+        sys.stdout.flush()
+
+    for report in history:
+        lap_budget = max(report.standings[0].last_lap, 0.0) / speed
+        new_lines = [f"  L{report.lap:>2}  {render_incident(inc).strip()}"
+                     for inc in report.incidents]
+
+        if new_lines:
+            # Tick the new calls in one at a time, spread across the lap, so the
+            # feed reads live. Total time still equals one lap.
+            slice_time = lap_budget / len(new_lines)
+            for line in new_lines:
+                commentary.append(line)
+                draw(report)
+                time.sleep(slice_time)
+        else:
+            draw(report)
+            time.sleep(lap_budget)
 
     print(CLEAR_SCREEN, end="")
     print(render_result(history[-1].standings))
 
 
-def run_weekend(difficulty=0.10, speed=20.0):
+def run_weekend(laps=40, difficulty=0.10, speed=20.0, grid_pause=5.0):
     quali_results = run_qualifying(GRID)
     print_timing_sheet(quali_results)
 
     starting_grid = [driver for driver, lap, qualified in quali_results if qualified]
-    history = run_race(starting_grid, laps=20, difficulty=difficulty)
+    history = run_race(starting_grid, laps=laps, difficulty=difficulty)
 
+    # Let the qualifying sheet breathe before the race starts.
     print("\n  Lights out -- here we go!\n")
-    time.sleep(40.0 / speed)
+    time.sleep(grid_pause)
     play_race(history, speed=speed)
 
 
 if __name__ == "__main__":
-    run_weekend(difficulty=0.10, speed=20.0)
+    run_weekend(laps=40, difficulty=0.10, speed=20.0, grid_pause=5.0)

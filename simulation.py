@@ -29,12 +29,13 @@ QUALIFYING_CUTOFF = 1.07        # 107% rule: slower than this multiple of pole =
 RACECRAFT_FLOOR = 0.05          # at/below this, a driver is hopeless: a guaranteed race-ending error
 
 # --- Incident / attrition knobs (mistake chances scale with 1 - racecraft) ---
-# Tuned to modern-F1 attrition: ~0.8 retirements per race over this 10-car, 20-lap
-# run (≈1.7 per equivalent 20-car grid), with ~40% of races finishing clean.
-SOLO_MISTAKE_CHANCE = 0.030     # lone error per lap, before skill-scaling
-CONTACT_CHANCE = 0.14           # extra risk when a passing move fails
+# Tuned to modern-F1 attrition over a 40-lap race: among the 18 genuine
+# competitors, ~1.7 retirements per race (~9.6%), ~16% of races clean. (The two
+# Objectivism cars are guaranteed to retire on top of that -- see RACECRAFT_FLOOR.)
+SOLO_MISTAKE_CHANCE = 0.017     # lone error per lap, before skill-scaling
+CONTACT_CHANCE = 0.08           # extra risk when a passing move fails
 MAJOR_DNF_CHANCE = 0.60         # chance a 'major' incident ends the race on the spot
-DAMAGE_FAILURE_FACTOR = 0.016   # per-lap DNF risk per 1.0s/lap of carried damage
+DAMAGE_FAILURE_FACTOR = 0.008   # per-lap DNF risk per 1.0s/lap of carried damage
 SEVERITY_SPLIT = (0.58, 0.23)   # P(minor), P(moderate); remainder is major
 SEVERITY_MULT = {"minor": 1.0, "moderate": 2.2, "major": 4.5}
 # -----------------------------------------------------------------------------
