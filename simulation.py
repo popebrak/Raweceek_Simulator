@@ -1,8 +1,4 @@
-"""The engine -- turns drivers into lap times, qualifying orders, and races.
-
-This file changes when you change *how the racing works*. It depends on the
-driver data model, but it knows NOTHING about how results are displayed.
-"""
+"""The engine -- turns drivers into lap times, qualifying orders, and races."""
 
 import random
 from dataclasses import dataclass
@@ -15,6 +11,7 @@ DIRTY_AIR_GAP = 1.0
 HELD_UP_GAP = 0.7
 BASE_PASS_CHANCE = 0.30
 PACE_WEIGHT = 0.6
+RACECRAFT_WEIGHT = 0.25   # <-- NEW: how much wheel-to-wheel skill matters
 # -----------------------------------------------------------------------------
 
 
@@ -38,7 +35,11 @@ def run_qualifying(grid):
 
 def attempt_overtake(chaser, defender, difficulty):
     pace_advantage = defender.driver.pace - chaser.driver.pace
-    chance = BASE_PASS_CHANCE + pace_advantage * PACE_WEIGHT - difficulty
+    skill_advantage = chaser.driver.racecraft - defender.driver.racecraft   # <-- NEW
+    chance = (BASE_PASS_CHANCE
+              + pace_advantage * PACE_WEIGHT
+              + skill_advantage * RACECRAFT_WEIGHT   # <-- NEW
+              - difficulty)
     chance = max(0.03, min(0.95, chance))
     return random.random() < chance
 
