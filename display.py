@@ -77,8 +77,11 @@ def _damage_tag(s):
 
 
 def _tyre_tag(s):
-    """How old the tyres are -- the higher it climbs, the slower the lap."""
-    return f"  ({s.stint_laps}L tyres)" if s.stint_laps > 0 else ""
+    """Which tyre, and how old -- the higher the age climbs, the slower the lap."""
+    if s.stint_laps <= 0:
+        return ""
+    comp = f"{s.compound[0].upper()} " if s.compound else ""
+    return f"  ({comp}{s.stint_laps}L)"
 
 
 def render_standings(standings, lap, total_laps):
@@ -150,11 +153,13 @@ def render_overtake(ov):
 def render_pit(ps):
     """One speakable line for a pit stop. The number of the stop colours the call."""
     nth = {1: "", 2: "second ", 3: "third "}.get(ps.stop_number, f"{ps.stop_number}th ")
+    onto = f" onto {ps.compound}s" if ps.compound else ""
     article = "an" if (ps.old_stint in (11, 18) or str(ps.old_stint).startswith("8")) else "a"
     if ps.stop_number >= 2:
         return (f"  >> {ps.driver_name} is back in for the {nth}time -- "
-                f"{article} {ps.old_stint}-lap stint done, fresh rubber on.")
-    return f"  >> {ps.driver_name} peels into the pits for fresh tyres after {ps.old_stint} laps -- back out he goes."
+                f"{article} {ps.old_stint}-lap stint done, switching{onto}.")
+    return (f"  >> {ps.driver_name} peels into the pits after {ps.old_stint} laps, "
+            f"comes out{onto}.")
 
 
 # --- TELEMETRY: the fiddly bits. Numbers live HERE, not in commentary. -------

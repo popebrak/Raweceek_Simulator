@@ -49,7 +49,7 @@ class Track:
 CALENDAR = [
     Track(
         "Italian Grand Prix", "Monza", "Italy",
-        lap_length_km=5.793, base_lap_time=81.0, overtaking_difficulty=0.03, tyre_wear=0.95,
+        lap_length_km=5.793, base_lap_time=81.0, overtaking_difficulty=0.03, tyre_wear=0.55,
         character="The Temple of Speed -- long straights, big tows, easy passing.",
         corners=[
             Corner("the Variante del Rettifilo", overtaking=True),
@@ -63,7 +63,7 @@ CALENDAR = [
     ),
     Track(
         "Belgian Grand Prix", "Spa-Francorchamps", "Belgium",
-        lap_length_km=7.004, base_lap_time=105.0, overtaking_difficulty=0.07, tyre_wear=1.15,
+        lap_length_km=7.004, base_lap_time=105.0, overtaking_difficulty=0.07, tyre_wear=1.00,
         character="Long, fast and sweeping -- the Kemmel straight rewards a brave tow.",
         corners=[
             Corner("La Source", overtaking=True),
@@ -77,7 +77,7 @@ CALENDAR = [
     ),
     Track(
         "Monaco Grand Prix", "Monte Carlo", "Monaco",
-        lap_length_km=3.337, base_lap_time=73.0, overtaking_difficulty=0.45, tyre_wear=0.45,
+        lap_length_km=3.337, base_lap_time=73.0, overtaking_difficulty=0.45, tyre_wear=0.15,
         race_distance_km=260.0,
         character="The jewel in the crown -- and a fortress. Track position is everything.",
         corners=[

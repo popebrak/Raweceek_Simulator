@@ -16,11 +16,13 @@ Qualifying enforces Formula 1's real 107% rule: lap outside 107% of pole and you
 do not make the race. Nobody is excluded by name -- the standard does the work.
 
 Tyres are the strategic layer. Wear is a per-lap time penalty that grows with the
-stint (the same shape as damage), scaled by the track's abrasiveness and the
-driver's tyre management, and it RESETS in the pits at the cost of a fixed time
-loss. Deciding when to take that loss is strategy; for now every car follows one
-simple threshold rule (see the pit block in run_race), which the future
-`strategy` attribute will replace with something cleverer and more characterful.
+stint (the same shape as damage), scaled by the COMPOUND fitted (soft/medium/hard
+trade grip against durability), the track's abrasiveness, and the driver's tyre
+management, and it RESETS in the pits at the cost of a fixed time loss. Before the
+race each car commits to a PLAN -- compounds and pit laps -- chosen by
+_plan_strategy: the cheapest sensible 1- or 2-stop using at least two compounds
+(F1's rule), as judged through the haze of the driver's `strategy` rating. A poor
+strategist misjudges the plan and picks a worse one; a master nails the optimum.
 """
 
 import random
@@ -39,6 +41,7 @@ PASS_CLEAR_GAP = 0.05          # margin a completed pass emerges ahead by, so it
 BASE_PASS_CHANCE = 0.30
 PACE_WEIGHT = 0.6
 RACECRAFT_WEIGHT = 0.25
+BASE_FLOOR = 0.03              # floor pass chance on an easy track; tightens hard as difficulty rises
 
 QUALIFYING_CUTOFF = 1.07        # 107% rule: slower than this multiple of pole = DNQ
 RACECRAFT_FLOOR = 0.05          # at/below this, a driver is hopeless: a guaranteed race-ending error
@@ -98,13 +101,45 @@ DEFENDER_SHARE = {"minor": 0.4, "moderate": 0.6, "major": 1.0}  # damage the pas
 # dials scale it: the TRACK's abrasiveness (tracks.tyre_wear) and the DRIVER's
 # tyre_management (a high manager wears more slowly). We don't model graining or
 # core temps -- tyre_management IS our abstraction for "keeps them in the window".
-TYRE_LINEAR = 0.050     # seconds/lap added per lap of stint (the steady bleed)
-TYRE_QUAD = 0.0026      # the late 'cliff': grows with stint length squared
+TYRE_LINEAR = 0.058     # seconds/lap added per lap of stint (the steady bleed)
+TYRE_QUAD = 0.0016      # the late 'cliff': grows with stint length squared
 TYRE_MGMT_SWING = 0.7   # how far tyre_management swings the wear rate (+/- ~0.35x)
-PIT_LOSS = 22.0         # time lost for a stop (pit lane + stationary), absolute seconds
-PIT_THRESHOLD = 2.5     # box once the tyre is costing more than this per lap...
-# ...and only if enough laps remain that fresh rubber pays the stop back (see loop).
+PIT_LOSS = 23.0         # time lost for a stop (pit lane + stationary), absolute seconds
+
+# --- Compounds & strategy ----------------------------------------------------
+# A compound is just two dials on the wear machine we already built: GRIP (a flat
+# per-lap time offset -- soft is quicker) and WEAR (a multiplier on how fast the
+# penalty grows -- soft dies sooner). The trade is the whole game: soft wins short
+# stints, hard wins long ones, medium splits the difference. F1's two-compound
+# rule (you must run at least two types in a dry race) is what forces a PLAN
+# rather than just bolting on the single fastest tyre -- so the planner always
+# builds plans that use >= 2 compounds, which also guarantees at least one stop.
+STRATEGY_MAX_STOPS = 2   # plans considered run 1 or 2 stops (a 3-stop is a one-line extension)
+STRATEGY_NOISE = 14.0    # seconds of plan-cost MISJUDGEMENT a hopeless strategist suffers
 # -----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Compound:
+    name: str
+    grip: float          # flat per-lap time offset in seconds (negative = faster)
+    wear: float          # multiplier on the wear rate (>1 wears faster)
+
+
+# The three dry tyres. Tuned so each is the fastest choice for SOME stint length:
+# soft ~1-15 laps, medium ~16-23, hard ~24+ (before track/management scaling).
+SOFT = Compound("soft", -0.75, 2.1)
+MEDIUM = Compound("medium", -0.05, 1.0)
+HARD = Compound("hard", 0.50, 0.5)
+COMPOUNDS = [SOFT, MEDIUM, HARD]
+
+
+@dataclass
+class RacePlan:
+    """A pre-race strategy: the compound for each stint and the laps to pit on.
+    compounds has one more entry than pit_laps (the stint after the final stop)."""
+    compounds: list      # list[Compound], one per stint
+    pit_laps: list        # list[int], the lap each stop is taken on (ascending)
 
 
 @dataclass
@@ -120,6 +155,8 @@ class CarState:
     doomed_lap: int = 0               # >0 if hopeless racecraft has marked a guaranteed DNF lap
     stint_laps: int = 0               # laps on the current set of tyres -- resets at a pit stop
     pit_count: int = 0                # how many stops made so far
+    compound: Compound = MEDIUM       # the tyre currently fitted
+    plan: RacePlan = None             # the pre-race strategy (None = legacy no-tyre mode)
 
     @property
     def damage(self):
@@ -140,6 +177,7 @@ class Standing:
     retired: bool
     retired_on_lap: int
     stint_laps: int = 0          # laps on the current tyres -- for the timing tower
+    compound: str = ""           # the tyre currently fitted ("" in legacy mode)
 
     @property
     def damage(self):
@@ -182,6 +220,7 @@ class PitStop:
     lap: int
     stop_number: int     # 1 = first stop of the race for this car
     old_stint: int       # how many laps the tyres being changed had done
+    compound: str = ""   # the fresh compound now fitted
 
 
 @dataclass
@@ -218,12 +257,17 @@ def run_qualifying(grid, track=None):
 def attempt_overtake(chaser, defender, difficulty):
     pace_advantage = defender.driver.pace - chaser.driver.pace
     skill_advantage = chaser.driver.racecraft - defender.driver.racecraft
-    chance = (BASE_PASS_CHANCE
-              + pace_advantage * PACE_WEIGHT
-              + skill_advantage * RACECRAFT_WEIGHT
-              - difficulty)
-    chance = max(0.03, min(0.95, chance))
-    return random.random() < chance
+    # A faster, craftier driver is likelier to get the move done -- but a hard
+    # track DAMPS how much of that edge you can actually use. At Monaco there's
+    # nowhere to put the car however quick you are, so the advantage counts for
+    # little; at Monza it counts for nearly all of itself.
+    edge = (pace_advantage * PACE_WEIGHT
+            + skill_advantage * RACECRAFT_WEIGHT) * (1 - difficulty)
+    chance = BASE_PASS_CHANCE - difficulty + edge
+    # The floor tightens with difficulty too: evenly-matched cars almost never
+    # clear each other at a fortress, so a train stays a train for lap after lap.
+    floor = BASE_FLOOR * (1 - difficulty) ** 2
+    return random.random() < max(floor, min(0.95, chance))
 
 
 def _roll_severity():
@@ -330,7 +374,7 @@ def _standings(cars):
         Standing(pos, c.driver.name, c.driver.team, c.grid_position,
                  c.total_time, c.last_lap, c.total_time - leader_time,
                  c.aero_damage, c.suspension_damage, c.retired, c.retired_on_lap,
-                 c.stint_laps)
+                 c.stint_laps, c.compound.name if c.plan is not None else "")
         for pos, c in enumerate(ordered, start=1)
     ]
 
@@ -384,16 +428,79 @@ def _tyre_penalty(car, track):
     """The per-lap time cost of the current tyres, as a function of stint length.
 
     A steady linear bleed plus a small quadratic 'cliff' late in the stint, scaled
-    by the track's abrasiveness and softened by the driver's tyre management. This
-    is the wear equivalent of `car.damage`: a number that taxes the lap and that a
-    pit stop wipes back to zero.
+    by the COMPOUND's wear rate, the track's abrasiveness, and softened by the
+    driver's tyre management. This is the wear equivalent of `car.damage`: a number
+    that taxes the lap and that a pit stop wipes back to zero.
     """
     s = car.stint_laps
     penalty = TYRE_LINEAR * s + TYRE_QUAD * s * s
+    penalty *= car.compound.wear                            # soft wears fast, hard slow
     if track is not None:
         penalty *= getattr(track, "tyre_wear", 1.0)         # abrasive tracks chew tyres
     penalty *= 1.0 - (car.driver.tire_management - 0.5) * TYRE_MGMT_SWING
     return max(0.0, penalty)
+
+
+def _plan_strategy(driver, track, laps):
+    """Build a race plan before the lights go out: which compound for each stint,
+    and which laps to pit on.
+
+    We enumerate every sensible structure -- a 1-stop or 2-stop, using at least two
+    compounds (the rule) -- cost each one with the SAME wear maths the race itself
+    uses, optimise the lap-split within each, and keep the cheapest of each. Then
+    the driver's `strategy` rating clouds the final choice: a poor strategist
+    misjudges the plan costs (gaussian noise that shrinks as strategy rises) and
+    can talk themselves into a worse plan -- the wrong number of stops, the wrong
+    rubber. A master like Machiavelli almost always lands on the true optimum.
+    """
+    # This driver's effective wear scaling at this track (management + abrasiveness).
+    w = getattr(track, "tyre_wear", 1.0) * (1.0 - (driver.tire_management - 0.5) * TYRE_MGMT_SWING)
+
+    # Precompute the cost of running each compound for n laps (variable time only:
+    # grip + wear; the constant base lap is identical across plans, so it drops out).
+    cost = {}
+    for c in COMPOUNDS:
+        arr = [0.0] * (laps + 1)
+        for n in range(1, laps + 1):
+            sum_s = n * (n + 1) / 2
+            sum_s2 = n * (n + 1) * (2 * n + 1) / 6
+            arr[n] = c.grip * n + c.wear * w * (TYRE_LINEAR * sum_s + TYRE_QUAD * sum_s2)
+        cost[c.name] = arr
+
+    structures = []   # (best_cost, RacePlan)
+
+    # One-stop: two distinct compounds; scan where to split the race.
+    for c1 in COMPOUNDS:
+        for c2 in COMPOUNDS:
+            if c1 is c2:
+                continue
+            best = None
+            for a in range(1, laps):
+                total = cost[c1.name][a] + cost[c2.name][laps - a] + PIT_LOSS
+                if best is None or total < best[0]:
+                    best = (total, [a])
+            structures.append((best[0], RacePlan([c1, c2], best[1])))
+
+    # Two-stop: any three stints using >= 2 distinct compounds; scan both splits.
+    if STRATEGY_MAX_STOPS >= 2:
+        for c1 in COMPOUNDS:
+            for c2 in COMPOUNDS:
+                for c3 in COMPOUNDS:
+                    if len({c1.name, c2.name, c3.name}) < 2:
+                        continue
+                    best = None
+                    for a in range(1, laps - 1):
+                        ca = cost[c1.name][a]
+                        for b in range(a + 1, laps):
+                            total = ca + cost[c2.name][b - a] + cost[c3.name][laps - b] + 2 * PIT_LOSS
+                            if best is None or total < best[0]:
+                                best = (total, [a, b])
+                    structures.append((best[0], RacePlan([c1, c2, c3], best[1])))
+
+    # The skill: misjudge the costs, then pick what LOOKS cheapest.
+    noise = STRATEGY_NOISE * (1.0 - driver.strategy)
+    chosen = min(structures, key=lambda cp: cp[0] + (random.gauss(0, noise) if noise else 0.0))
+    return chosen[1]
 
 
 def run_race(starting_grid, track=None, laps=None, difficulty=None):
@@ -417,6 +524,14 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
         if car.driver.racecraft <= RACECRAFT_FLOOR:
             car.doomed_lap = random.randint(1, laps)
 
+    # Pre-race strategy: each car commits to a plan (compounds + pit laps) and bolts
+    # on its starting tyre. Only with a real track (which supplies wear/abrasiveness);
+    # without one we stay in legacy no-tyre mode.
+    if track is not None:
+        for car in cars:
+            car.plan = _plan_strategy(car.driver, track, laps)
+            car.compound = car.plan.compounds[0]
+
     history = []
 
     # Resolve the standing start: this seeds each car's total_time with a real
@@ -433,8 +548,12 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
         for i, car in enumerate(running):
             car.stint_laps += 1                                       # another lap on this set
             old_total = car.total_time
-            tyre = _tyre_penalty(car, track)
-            lap_time = simulate_lap(car.driver, track) + car.damage + tyre  # damage AND tyres tax the lap
+            if car.plan is None:
+                tyre = grip = 0.0                                     # legacy no-tyre mode
+            else:
+                tyre = _tyre_penalty(car, track)
+                grip = car.compound.grip
+            lap_time = simulate_lap(car.driver, track) + car.damage + tyre + grip  # damage AND tyres tax the lap
             time_lost = 0.0
 
             # 0. Hopeless racecraft: the inevitable, race-ending error finally arrives
@@ -462,21 +581,22 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
                     _retire(car, lap, old_total, lap_time, time_lost)
                     continue
 
-            # 2b. Pit stop? A dumb-but-sensible heuristic for now: box once the
-            # tyre is costing more than the threshold AND enough laps remain that
-            # fresh rubber earns the stop back (penalty saved per lap * laps left >
-            # the pit loss). That second clause stops pointless late stops on its
-            # own. The CLEVER, characterful version of this call is what the future
-            # `strategy` attribute will own; for now every car follows the same rule.
-            laps_remaining = laps - lap
-            if tyre > PIT_THRESHOLD and tyre * laps_remaining > PIT_LOSS:
-                time_lost += PIT_LOSS
+            # 2b. Pit stop -- now driven by the PLAN, not a reactive threshold. If
+            # this lap is the next scheduled stop, box: fit the planned compound,
+            # reset the tyres, eat the pit loss. The plan was built pre-race by
+            # _plan_strategy; how good it is depends on the driver's `strategy`.
+            if (car.plan is not None and car.pit_count < len(car.plan.pit_laps)
+                    and lap == car.plan.pit_laps[car.pit_count]):
+                old_stint = car.stint_laps
                 car.pit_count += 1
-                pit_stops.append(PitStop(car.driver.name, lap, car.pit_count, car.stint_laps))
-                car.stint_laps = 0                          # fresh rubber from next lap
+                car.compound = car.plan.compounds[car.pit_count]      # the fresh rubber
+                car.stint_laps = 0
+                time_lost += PIT_LOSS
+                pit_stops.append(PitStop(car.driver.name, lap, car.pit_count,
+                                         old_stint, car.compound.name))
                 car.total_time = old_total + lap_time + time_lost
                 car.last_lap = car.total_time - old_total
-                continue                                    # the in-lap skips the on-track fight
+                continue                                              # the in-lap skips the on-track fight
 
             # 3. The leader runs in clear air
             if i == 0:
