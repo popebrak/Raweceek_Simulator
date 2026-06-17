@@ -84,7 +84,7 @@ def render_standings(standings, lap, total_laps):
             continue
         gap_str = "LEADER" if s.position == 1 else f"+{s.gap_to_leader:.3f}"
         lines.append(f"  P{s.position:<2} {s.name:<21} {s.team:<15} "
-                     f"{gap_str:<10} last {s.last_lap:6.3f}{_damage_tag(s)}")
+                     f"{gap_str:<10} last {format_time(s.last_lap)}{_damage_tag(s)}")
     return "\n".join(lines)
 
 
@@ -120,6 +120,25 @@ def render_commentary(inc):
     if inc.retirement:
         return f"  >> {inc.driver_name} {phrase}{at} -- a {inc.severity} one -- AND THAT'S THE END OF THEIR RACE!"
     return f"  >> {inc.driver_name} {phrase}{at} -- {SOLO_FLOURISH[inc.severity]}"
+
+
+# --- COMMENTARY: completed overtakes (the other half of the racing story). ----
+def render_overtake(ov):
+    """One speakable line for a clean pass. Drama scales with what's at stake."""
+    if ov.location == "the start":
+        if ov.position == 1:
+            return f"  >> {ov.passer} BEATS them all off the line -- leads into Turn 1!"
+        if ov.places_gained >= 4:
+            return f"  >> {ov.passer} -- what a launch! Storms up to P{ov.position}!"
+        if ov.places_gained >= 2:
+            return f"  >> {ov.passer} gets a flier off the line, up to P{ov.position}!"
+        return f"  >> {ov.passer} edges ahead at the start, into P{ov.position}."
+    at = _at(ov.location)
+    if ov.position == 1:
+        return f"  >> {ov.passer} sweeps past {ov.passed}{at} -- and takes the LEAD!"
+    if ov.position <= 3:
+        return f"  >> {ov.passer} forces it past {ov.passed}{at} for P{ov.position}!"
+    return f"  >> {ov.passer} gets the move done on {ov.passed}{at}, up into P{ov.position}."
 
 
 # --- TELEMETRY: the fiddly bits. Numbers live HERE, not in commentary. -------
@@ -214,6 +233,10 @@ def render_summary(summary):
     if s.fastest_lap_driver:
         lines.append(f"  Fastest lap of the race: {s.fastest_lap_driver}, "
                      f"a {format_time(s.fastest_lap_time)}.")
+
+    # How much racing there was at the sharp end.
+    if s.overtakes_count:
+        lines.append(f"  {s.overtakes_count} passes for the podium places out on track.")
 
     return "\n".join(lines)
 

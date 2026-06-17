@@ -23,8 +23,12 @@ from drivers import Driver
 
 
 # --- Pace / overtaking knobs -------------------------------------------------
+# DIRTY_AIR_GAP and HELD_UP_GAP stay in ABSOLUTE seconds on purpose -- "within a
+# second" and "0.7s behind" are real, track-independent racing distances (think
+# DRS range), not fractions of a lap.
 DIRTY_AIR_GAP = 1.0
 HELD_UP_GAP = 0.7
+PASS_CLEAR_GAP = 0.05          # margin a completed pass emerges ahead by, so it sticks
 BASE_PASS_CHANCE = 0.30
 PACE_WEIGHT = 0.6
 RACECRAFT_WEIGHT = 0.25
@@ -49,6 +53,24 @@ SEVERITY_MULT = {"minor": 1.0, "moderate": 2.2, "major": 4.5}
 # Length then stops inflating the carnage, and the TRACK (its overtaking
 # difficulty) becomes what actually makes one circuit messier than another.
 BASELINE_LAPS = 40
+
+# A driver's `pace` is an abstract ~90s figure -- skill, not a real lap time. To
+# get realistic times we scale it to each track: a notional REFERENCE_PACE driver
+# laps in exactly the track's base_lap_time. PACE and CONSISTENCY scale (they ARE
+# the lap); car-to-car gaps, one-off time losses, and carried damage stay in real
+# seconds (a 1s gap is 1s anywhere -- it's a distance-in-time, not a lap).
+REFERENCE_PACE = 90.0
+
+# --- The standing start ------------------------------------------------------
+# At lights-out the CLOCK hasn't started -- GRID POSITION is the only truth. The
+# start is its own phase: we string the field out by grid (each slot a little
+# further back in race time), then let a LAUNCH -- racecraft plus pure chaos --
+# shuffle the pack on the run to the first corner. This seeds total_time with a
+# real spread so that from lap 1 the engine knows who is where, instead of trying
+# to order twenty cars that all read 0.0 (which is what scrambled the old lap 1).
+GRID_INTERVAL = 0.45    # race-time between consecutive grid slots as the field strings out
+LAUNCH_SPREAD = 0.35    # the chaos of the getaway (gaussian sigma, in seconds)
+LAUNCH_SKILL = 0.5      # how much racecraft helps (or, when low, hurts) off the line
 
 # Collisions take two. A big (major) hit can pitch either car out -- and rolling
 # it for each independently means a really big one sometimes takes BOTH. The car
@@ -110,23 +132,43 @@ class Incident:
 
 
 @dataclass
+class Overtake:
+    """A clean, completed pass -- the OTHER half of the racing story. Recorded so
+    the commentary has something to call; whether a given pass is worth a mention
+    is left to the display layer (a pass for the lead matters; P14 rarely does)."""
+    passer: str
+    passed: str
+    lap: int
+    position: int        # the place being fought for (1 = the lead)
+    location: str = ""   # named overtaking corner ("" if track-agnostic); "the start" for getaways
+    places_gained: int = 0   # only meaningful for a start: places made up off the line
+
+
+@dataclass
 class LapReport:
     lap: int
     standings: list = field(default_factory=list)   # list[Standing]
     incidents: list = field(default_factory=list)   # list[Incident]
+    overtakes: list = field(default_factory=list)   # list[Overtake]
 
 
-def simulate_lap(driver):
-    return driver.pace + random.gauss(0, driver.consistency)
+def simulate_lap(driver, track=None):
+    """One lap in seconds. With a track, the abstract pace is scaled to a real
+    lap time (pace and consistency scale together); without one, pace is the lap."""
+    raw = driver.pace + random.gauss(0, driver.consistency)
+    if track is None:
+        return raw
+    return raw * (track.base_lap_time / REFERENCE_PACE)
 
 
-def run_qualifying(grid):
+def run_qualifying(grid, track=None):
     """Each driver sets one flying lap. Apply the 107% rule.
 
     Returns a list of (driver, lap, qualified) sorted fastest first. A driver is
-    'qualified' only if their lap is within 107% of pole.
+    'qualified' only if their lap is within 107% of pole. (The cutoff is relative,
+    so track scaling shifts every time together and never changes who qualifies.)
     """
-    results = [(driver, simulate_lap(driver)) for driver in grid]
+    results = [(driver, simulate_lap(driver, track)) for driver in grid]
     results.sort(key=lambda pair: pair[1])
     cutoff = results[0][1] * QUALIFYING_CUTOFF
     return [(driver, lap, lap <= cutoff) for driver, lap in results]
@@ -268,6 +310,34 @@ def _pick_corner(track, overtaking=False):
     return random.choice(pool)
 
 
+def _run_start(cars):
+    """Resolve the standing start, returning the position changes off the line.
+
+    Grid position is the only truth at lights-out -- the clock reads zero for
+    everyone -- so we seed each car's race time from where it starts (each slot a
+    little further back), then let a launch shuffle the pack: racecraft helps, but
+    chaos has the final say. A great getaway eats into your deficit; a bog-down
+    hands places away. The resulting spread is what lets the engine know who is
+    ahead of whom from the very first lap.
+
+    Returns the cars that gained places as Overtake events, for the commentary.
+    """
+    for car in cars:
+        base = (car.grid_position - 1) * GRID_INTERVAL
+        jitter = random.gauss(0, LAUNCH_SPREAD)
+        skill = (car.driver.racecraft - 0.5) * LAUNCH_SKILL   # >0 gains, <0 loses
+        car.total_time = max(0.0, base + jitter - skill)
+
+    order = sorted(cars, key=lambda c: c.total_time)
+    events = []
+    for new_pos, car in enumerate(order, start=1):
+        gained = car.grid_position - new_pos
+        if gained > 0:
+            events.append(Overtake(car.driver.name, "", lap=1, position=new_pos,
+                                   location="the start", places_gained=gained))
+    return events
+
+
 def run_race(starting_grid, track=None, laps=None, difficulty=None):
     # The track supplies the race distance and how hard it is to pass; either can
     # still be overridden by hand (handy for testing). Falls back to the old
@@ -291,13 +361,19 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
 
     history = []
 
+    # Resolve the standing start: this seeds each car's total_time with a real
+    # grid-based spread, so the clock and track position now mean distinct things
+    # and the lap loop below knows who is where from lap 1 onward.
+    start_events = _run_start(cars)
+
     for lap in range(1, laps + 1):
         running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
         incidents = []
+        overtakes = list(start_events) if lap == 1 else []
 
         for i, car in enumerate(running):
             old_total = car.total_time
-            lap_time = simulate_lap(car.driver) + car.damage   # both damages tax the lap
+            lap_time = simulate_lap(car.driver, track) + car.damage   # both damages tax the lap
             time_lost = 0.0
 
             # 0. Hopeless racecraft: the inevitable, race-ending error finally arrives
@@ -339,7 +415,16 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
                 # Clear track ahead -- or the car ahead has already crashed out -- run own pace
                 car.total_time = provisional
             elif attempt_overtake(car, ahead, difficulty):
-                car.total_time = provisional                      # move stuck -- through cleanly
+                # A completed pass means emerging AHEAD of the car you passed. If
+                # the chaser's own pace already does that (provisional below the
+                # car ahead), keep it; otherwise nudge them just in front so the
+                # pass STICKS in the running order. Without this, a car caught in
+                # dirty air "passes" every single lap without ever getting by --
+                # a phantom the commentary would dutifully (and wrongly) call.
+                car.total_time = min(provisional, ahead.total_time - PASS_CLEAR_GAP)
+                overtakes.append(Overtake(car.driver.name, ahead.driver.name, lap,
+                                          position=i,
+                                          location=_pick_corner(track, overtaking=True)))
             else:
                 # The move didn't come off -- risk of contact, worse if clumsy
                 if random.random() < CONTACT_CHANCE * length_scale * (1 - car.driver.racecraft):
@@ -359,7 +444,7 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
 
             car.last_lap = car.total_time - old_total
 
-        history.append(LapReport(lap, _standings(cars), incidents))
+        history.append(LapReport(lap, _standings(cars), incidents, overtakes))
 
     return history
 
@@ -387,6 +472,7 @@ class RaceSummary:
     fastest_lap_time: float
     retirements: list          # [(name, lap, cause, location)] -- words live in display
     double_dnfs: list          # [(chaser, defender, lap, location)] from major collisions
+    overtakes_count: int = 0   # clean on-track passes for position across the race
 
 
 def summarize_race(history, track=None):
@@ -442,6 +528,12 @@ def summarize_race(history, track=None):
     retire_list = sorted(((n, lap, cause, loc) for n, (lap, cause, loc) in retirements.items()),
                          key=lambda t: t[1])
 
+    # On-track passes for the SHARP END only. The engine resolves position every
+    # lap, so the raw pass count is inflated (lots of midfield churn) and not a
+    # realistic race total -- so we tally only the passes that actually mattered.
+    overtakes_count = sum(1 for rep in history for ov in rep.overtakes
+                          if ov.position <= 3 and ov.location != "the start")
+
     return RaceSummary(
         circuit=track.circuit if track is not None else "",
         total_laps=total_laps, starters=starters, finishers=finishers,
@@ -452,4 +544,5 @@ def summarize_race(history, track=None):
         podium=podium, drive_of_the_day=dotd, lead_changes=lead_changes,
         fastest_lap_driver=fl_driver, fastest_lap_time=fl_time,
         retirements=retire_list, double_dnfs=double_dnfs,
+        overtakes_count=overtakes_count,
     )

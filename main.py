@@ -15,16 +15,25 @@ from drivers import GRID
 from tracks import CALENDAR, track_by_circuit
 from simulation import run_qualifying, run_race, summarize_race
 from display import (print_timing_sheet, render_standings, render_commentary,
-                     render_telemetry, render_result, render_summary, track_banner)
+                     render_overtake, render_telemetry, render_result,
+                     render_summary, track_banner)
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
+NOTABLE_OVERTAKE = 3         # baseline: call passes for this position or better; hard tracks widen it
 DIVIDER = "  " + "-" * 60
 
 
 def play_race(history, speed, track=None, show_telemetry=False):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
+
+    # Which passes are worth a call depends on the circuit. Where passing is hard
+    # (Monaco, Suzuka) even a midfield move is an event, so we call deeper into the
+    # field; where it's cheap (Monza) we keep it to the fight for the front.
+    notable_pos = NOTABLE_OVERTAKE
+    if track is not None:
+        notable_pos += round(track.overtaking_difficulty * 10)
 
     def draw(report):
         print(CLEAR_SCREEN, end="")
@@ -51,6 +60,12 @@ def play_race(history, speed, track=None, show_telemetry=False):
                 tele = render_telemetry(inc).strip()
                 if tele:
                     new_lines.append(f"        {tele}")
+        # Call the passes worth calling. The standing start is always worth it --
+        # the first-lap scramble is the drama -- so start getaways bypass the
+        # threshold that governs ordinary corner passes.
+        for ov in report.overtakes:
+            if ov.location == "the start" or ov.position <= notable_pos:
+                new_lines.append(f"  L{report.lap:>2}  {render_overtake(ov).strip()}")
 
         if new_lines:
             # Tick the new calls in one at a time, spread across the lap, so the
@@ -80,7 +95,7 @@ def run_weekend(track=None, speed=20.0, grid_pause=5.0, show_telemetry=False,
         track = track_by_circuit(track) or random.choice(CALENDAR)
 
     print(track_banner(track))
-    quali_results = run_qualifying(GRID)
+    quali_results = run_qualifying(GRID, track)
     print_timing_sheet(quali_results)
 
     starting_grid = [driver for driver, lap, qualified in quali_results if qualified]
