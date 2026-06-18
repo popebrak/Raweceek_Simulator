@@ -48,7 +48,7 @@ def _overtake_worth(ov, notable_pos):
     return ov.position <= min(notable_pos, POINTS_POSITIONS)
 
 
-def play_race(history, speed, track=None, show_telemetry=False, booth=None):
+def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_pause=8.0):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
     if booth is None:                              # the two voices: Vale (calls) & Benny (colour)
@@ -135,15 +135,24 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None):
                 time.sleep(slice_time)
         else:
             # A quiet lap. In the closing laps the booth builds the run-in tension
-            # regardless (generated from the gap and laps left, so it never runs dry);
-            # earlier on, it fills with backstory and banter. Either way it speaks.
-            bit = (booth.for_runin(report.standings, report.lap, total_laps)
-                   or booth.for_lull(report.standings, report.lap, total_laps))
-            if bit:
-                for role, line in bit.turns:
+            # (generated from the gap and laps left); earlier on it runs its ongoing
+            # DISCUSSION, a beat at a time, so a topic unfolds across the green-flag
+            # spell instead of a one-liner being fired and forgotten. Either way the
+            # air is filled.
+            runin = booth.for_runin(report.standings, report.lap, total_laps)
+            if runin:
+                for role, line in runin.turns:
+                    commentary.append(voice(report.lap, role, line))
+            else:
+                for role, line in booth.next_chatter(report.standings, report.lap):
                     commentary.append(voice(report.lap, role, line))
             draw(report)
             time.sleep(lap_budget)
+
+    # Hold the final commentary -- the run to the flag and the winner's call -- on
+    # screen for a beat before the results wipe it, so it can actually be read (and,
+    # until TTS lands, so there's time to follow what was just said).
+    time.sleep(end_pause)
 
     print(CLEAR_SCREEN, end="")
     print(render_result(history[-1].standings))
@@ -161,8 +170,8 @@ def _play_show(turns, pace):
         time.sleep(pace)
 
 
-def run_weekend(track=None, speed=20.0, grid_pause=5.0, show_telemetry=False,
-                laps=None, difficulty=None, show_pace=1.0):
+def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
+                laps=None, difficulty=None, show_pace=1.0, end_pause=10.0):
     # Pick a circuit (by name, by object, or at random) -- the track decides the
     # race distance and how hard it is to pass.
     if track is None:
@@ -186,9 +195,12 @@ def run_weekend(track=None, speed=20.0, grid_pause=5.0, show_telemetry=False,
     starting_grid = [driver for driver, lap, qualified in quali_results if qualified]
     history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
 
+    # grid_pause holds the Countdown to Green on screen so it can be read before the
+    # race wipes it for the live standings board.
     print("\n  Lights out -- here we go!\n")
     time.sleep(grid_pause)
-    play_race(history, speed=speed, track=track, show_telemetry=show_telemetry, booth=booth)
+    play_race(history, speed=speed, track=track, show_telemetry=show_telemetry,
+              booth=booth, end_pause=end_pause)
 
     # The post-race show: how it was won, where strategy turned, words from the podium.
     print()
@@ -199,4 +211,7 @@ def run_weekend(track=None, speed=20.0, grid_pause=5.0, show_telemetry=False,
 
 if __name__ == "__main__":
     # Pass e.g. track="Monaco" to pick a circuit, or leave it for a random one.
-    run_weekend(track=None, speed=20.0, grid_pause=5.0, show_telemetry=False)
+    # grid_pause / end_pause hold the pre-race and post-race screens long enough to
+    # read; raise them if you want even more time, drop them once TTS is reading aloud.
+    run_weekend(track=None, speed=20.0, grid_pause=10.0, end_pause=10.0,
+                show_telemetry=False)

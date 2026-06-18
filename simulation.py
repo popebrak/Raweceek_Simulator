@@ -344,37 +344,57 @@ def _roll_severity():
 
 
 def _solo_cause():
-    r = random.random()
-    if r < 0.50:
-        return "off-track"
-    if r < 0.85:
-        return "kerb"
-    return "wall"
+    """The flavour of a lone error. A spread of real driving mistakes, weighted to
+    how often each tends to happen -- common little ones (running wide, a lock-up)
+    far more than the rare big ones (into the wall, beached in the gravel). The cause
+    sets BOTH the words the commentary uses and the kind of harm it does (see
+    _make_incident): some cost mostly time, others batter the car."""
+    return random.choices(
+        ["off-track", "lock-up", "spin", "grass", "kerb", "wall", "gravel"],
+        weights=[16, 18, 12, 12, 16, 10, 16])[0]
 
 
 def _make_incident(car, lap, cause):
-    """Build a SOLO incident (off-track, kerb, wall), apply lasting damage, decide DNF.
+    """Build a SOLO incident, apply lasting damage, decide DNF.
 
-    An off-track mostly costs time now; kerbs and walls mostly cost lasting damage
-    (suspension and aero) that taxes every future lap. Contact between cars is a
-    two-car event handled by _collide.
+    Each cause has its own signature. The 'soft' errors -- running wide, a lock-up,
+    a spin, a trip across the grass -- mostly cost TIME right now. The 'hard' ones --
+    a kerb, the wall, the gravel -- mostly inflict lasting AERO and SUSPENSION damage
+    that taxes every future lap (and can let go entirely, laps later). Contact between
+    cars is a separate two-car event handled by _collide.
     """
     severity = _roll_severity()
     mult = SEVERITY_MULT[severity]
     time_lost = aero = susp = 0.0
 
-    if cause == "off-track":
+    if cause == "off-track":                            # runs out of road -- time, little damage
         time_lost = random.uniform(1.0, 3.0) * mult
         if severity != "minor":
             aero = random.uniform(0.0, 0.15) * mult
-    elif cause == "kerb":
+    elif cause == "lock-up":                            # flat-spots and runs deep -- mostly time
+        time_lost = random.uniform(0.8, 2.2) * mult
+        if severity == "major":
+            aero = random.uniform(0.0, 0.10) * mult
+    elif cause == "spin":                               # gathers it up / restarts -- big time cost
+        time_lost = random.uniform(1.5, 3.5) * mult
+        if severity != "minor":
+            susp = random.uniform(0.0, 0.12) * mult
+    elif cause == "grass":                              # onto the green stuff -- time, a little aero
+        time_lost = random.uniform(0.8, 2.2) * mult
+        if severity != "minor":
+            aero = random.uniform(0.0, 0.12) * mult
+    elif cause == "kerb":                               # sausage kerb -- batters the suspension
         time_lost = random.uniform(0.3, 1.0) * mult
-        susp = random.uniform(0.10, 0.30) * mult        # kerbs batter the suspension
+        susp = random.uniform(0.10, 0.30) * mult
         aero = random.uniform(0.0, 0.10) * mult
-    elif cause == "wall":
+    elif cause == "wall":                               # into the barrier -- heavy aero + suspension
         time_lost = random.uniform(1.5, 3.5) * mult
         aero = random.uniform(0.15, 0.35) * mult
         susp = random.uniform(0.10, 0.30) * mult
+    elif cause == "gravel":                             # beached / ploughs through -- slow, and bent
+        time_lost = random.uniform(2.0, 4.0) * mult
+        susp = random.uniform(0.08, 0.25) * mult
+        aero = random.uniform(0.05, 0.20) * mult
 
     car.aero_damage += aero
     car.suspension_damage += susp

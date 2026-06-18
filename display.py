@@ -13,20 +13,45 @@ Two distinct jobs live here, and they are kept apart on purpose:
   * WRAP-UP     (render_summary) -- the post-race story, built from a RaceSummary.
 """
 
+from random import choice
+
 from simulation import QUALIFYING_CUTOFF
 
 
+# Each cause carries SEVERAL phrasings -- the commentary picks one at random, so the
+# same kind of mistake doesn't read the same way twice. {at the corner} is appended
+# by the caller. Causes line up with simulation._solo_cause.
 CAUSE_PHRASE = {
-    "off-track": "runs wide",
-    "kerb": "is launched over a sausage kerb",
-    "wall": "clips the wall",
+    "off-track": ["runs wide", "runs out of road", "sails off the circuit",
+                  "drops it onto the run-off", "overcooks it and runs wide"],
+    "lock-up":   ["locks up and runs deep", "flat-spots the fronts and skates wide",
+                  "locks the inside front", "gets it all wrong under braking",
+                  "lights up the fronts and sails on"],
+    "spin":      ["spins it", "snaps round", "gets it all out of shape and spins",
+                  "loses the rear and spins", "half-spins and scrabbles for grip"],
+    "grass":     ["puts a wheel on the grass", "runs onto the green stuff and slithers",
+                  "gets onto the marbles", "drops two wheels onto the grass",
+                  "runs in too hot and onto the grass"],
+    "kerb":      ["is launched over a sausage kerb", "clatters over the kerb",
+                  "rides the kerb too hard and bounces wide", "gets the kerb all wrong",
+                  "is fired skyward by the kerb"],
+    "wall":      ["clips the wall", "brushes the barrier", "kisses the wall on the exit",
+                  "glances off the barrier", "taps the wall"],
+    "gravel":    ["digs into the gravel", "ploughs into the gravel trap",
+                  "drops it into the gravel", "fishtails into the gravel",
+                  "beaches a wheel in the gravel"],
 }
 
-# Severity, said the way a commentator would say it (no numbers).
+# Severity, said the way a commentator would say it (no numbers) -- a pool each.
 SOLO_FLOURISH = {
-    "minor":    "but gathers it up and carries on",
-    "moderate": "a scruffy moment, and that will have cost some time",
-    "major":    "a big one -- that could haunt the rest of their race",
+    "minor":    ["but gathers it up and carries on", "but catches it and continues",
+                 "no harm done, they're still going", "but holds onto it, lucky"],
+    "moderate": ["a scruffy moment, and that will have cost some time",
+                 "untidy -- they'll have lost a chunk there",
+                 "a real wobble, and time lost", "messy, and that hurts the lap"],
+    "major":    ["a big one -- that could haunt the rest of their race",
+                 "a huge moment -- lucky to still be running",
+                 "an enormous error -- that will hurt", "a massive moment, and time torn up"],
 }
 CONTACT_WORD = {"minor": "light", "moderate": "firm", "major": "heavy"}
 
@@ -36,6 +61,10 @@ RETIRE_PHRASE = {
     "wall":           "into the wall",
     "kerb":           "broken over a kerb",
     "off-track":      "off and beached",
+    "lock-up":        "locked up and off",
+    "spin":           "spun out of it",
+    "grass":          "off across the grass and out",
+    "gravel":         "beached in the gravel",
     "damage failure": "expired from earlier damage",
     "over the limit": "spun out of their depth",
 }
@@ -123,11 +152,12 @@ def render_commentary(inc):
         word = CONTACT_WORD[inc.severity]
         return (f"  >> {inc.driver_name} dives down the inside of {other}{at} -- "
                 f"side by side... and they make {word} contact, both keep going!")
-    # solo: off-track / kerb / wall
-    phrase = CAUSE_PHRASE.get(inc.cause, inc.cause)
+    # solo: the lone errors -- a random phrasing each time, so they never read stale.
+    options = CAUSE_PHRASE.get(inc.cause)
+    phrase = choice(options) if options else inc.cause
     if inc.retirement:
         return f"  >> {inc.driver_name} {phrase}{at} -- a {inc.severity} one -- AND THAT'S THE END OF THEIR RACE!"
-    return f"  >> {inc.driver_name} {phrase}{at} -- {SOLO_FLOURISH[inc.severity]}"
+    return f"  >> {inc.driver_name} {phrase}{at} -- {choice(SOLO_FLOURISH[inc.severity])}"
 
 
 # --- COMMENTARY: completed overtakes (the other half of the racing story). ----
