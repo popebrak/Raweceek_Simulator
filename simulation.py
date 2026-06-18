@@ -29,6 +29,7 @@ import random
 from dataclasses import dataclass, field
 
 from drivers import Driver
+from weather import make_weather, Conditions, INTER_CROSSOVER, WET_CROSSOVER
 
 
 # --- Pace / overtaking knobs -------------------------------------------------
@@ -145,6 +146,8 @@ class Compound:
     grip: float          # flat per-lap time offset in seconds (negative = faster)
     wear: float          # multiplier on the wear rate (>1 wears faster)
     warmup: float        # how slow to switch on when fresh (>1 = takes longer to come in)
+    family: str = "slick"   # "slick" | "inter" | "wet" -- which conditions it's for
+    wet_opt: float = 0.0    # the wetness it's designed for (0 dry; see weather crossovers)
 
 
 # The three dry tyres. Tuned so each is the fastest choice for SOME stint length:
@@ -155,7 +158,68 @@ class Compound:
 SOFT = Compound("soft", -0.75, 2.1, 0.6)
 MEDIUM = Compound("medium", -0.05, 1.0, 1.0)
 HARD = Compound("hard", 0.50, 0.5, 1.7)
-COMPOUNDS = [SOFT, MEDIUM, HARD]
+COMPOUNDS = [SOFT, MEDIUM, HARD]              # the DRY planner only ever considers these
+
+# The rain tyres. They are NOT in the dry planner's menu -- a car only reaches for
+# them reactively, when the weather turns (see the reactive-tyre logic in run_race).
+# `wet_opt` is where each is happiest: the intermediate around a damp track, the full
+# wet around a streaming one. Run them on the wrong surface and _condition_penalty
+# bites; run a slick in any wet at all and it bites savagely.
+INTERMEDIATE = Compound("intermediate", 0.8, 0.9, 1.2, family="inter", wet_opt=0.40)
+WET = Compound("wet", 2.2, 0.6, 1.5, family="wet", wet_opt=0.85)
+
+
+# --- Weather physics ---------------------------------------------------------
+# Everything here scales from ZERO when the track is dry (wetness 0), so a dry race
+# behaves EXACTLY as it did before weather existed -- the tuned racing is untouched
+# until it actually rains. When it does:
+#   * WET_LAP_FACTOR slows EVERY car (a wet track is just slower, right tyre or not).
+#   * _condition_penalty punishes the wrong tyre for the conditions -- gently for an
+#     intermediate a little off its window, savagely for a slick in any standing water.
+#   * mistakes multiply with wetness, and again if you're on the wrong rubber.
+#   * drivers react: when the needed tyre family changes, they pit for it, and how
+#     promptly is their `strategy` mind at work (the planners pounce, the chargers
+#     slither around a lap too long).
+WET_LAP_FACTOR = 16.0       # seconds added at full wet, even on the correct tyre
+SLICK_WET_FACTOR = 70.0     # slicks on a wet track: ruinous, and quadratic in wetness
+WET_MISMATCH = 22.0         # an inter/wet away from its ideal wetness, per unit off
+DRY_ON_RAINS = 7.0          # a rain tyre on a bone-dry track: overheats and grains away
+WET_INCIDENT = 3.0          # how much full wetness multiplies the base mistake chance
+WRONGTYRE_INCIDENT = 1.8    # extra mistake multiplier when on the wrong tyre family
+WEATHER_SWITCH_BASE = 0.20  # per-lap chance of reacting to a tyre-family change at all
+WEATHER_SWITCH_STRAT = 0.7  # ...plus this much, scaled by the driver's strategy rating
+
+
+def _needed_family(wetness):
+    """Which tyre family the conditions call for -- the engine and weather.py share
+    the same crossovers, so the rubber and the rain never disagree."""
+    if wetness >= WET_CROSSOVER:
+        return "wet"
+    if wetness >= INTER_CROSSOVER:
+        return "inter"
+    return "slick"
+
+
+def _condition_penalty(compound, wetness):
+    """Per-lap time cost of the fitted tyre being wrong for the conditions. A slick
+    on a wet track is a catastrophe (quadratic); a rain tyre off its window, or out
+    on a drying/dry track, is merely slow."""
+    if compound.family == "slick":
+        return SLICK_WET_FACTOR * wetness * wetness          # 0 when dry, ruinous when wet
+    pen = WET_MISMATCH * abs(wetness - compound.wet_opt)
+    if wetness < 0.05:                                       # rain tyres on a dry track grain away
+        pen += DRY_ON_RAINS
+    return pen
+
+
+def _weather_tyre(family):
+    """The compound a driver bolts on for a given conditions family. Back to slicks,
+    they reach for the medium -- the safe all-rounder when the track's uncertain."""
+    if family == "inter":
+        return INTERMEDIATE
+    if family == "wet":
+        return WET
+    return MEDIUM
 
 
 @dataclass
@@ -179,7 +243,8 @@ class CarState:
     retired_on_lap: int = 0
     doomed_lap: int = 0               # >0 if hopeless racecraft has marked a guaranteed DNF lap
     stint_laps: int = 0               # laps on the current set of tyres -- resets at a pit stop
-    pit_count: int = 0                # how many stops made so far
+    pit_count: int = 0                # PLANNED stops made -- indexes the dry strategy
+    stops_made: int = 0               # ALL stops (planned + undercut + weather) -- for display only
     compound: Compound = MEDIUM       # the tyre currently fitted
     plan: RacePlan = None             # the pre-race strategy, assigned by _plan_strategy before lights-out
 
@@ -295,6 +360,8 @@ class LapReport:
     overtakes: list = field(default_factory=list)   # list[Overtake]
     pit_stops: list = field(default_factory=list)   # list[PitStop]
     undercuts: list = field(default_factory=list)   # list[Undercut]
+    conditions: Conditions = None                   # the weather this lap was run in
+    weather_change: str = ""                        # set on a threshold crossing: "rain_begins" etc.
 
 
 def simulate_lap(driver, track):
@@ -667,6 +734,11 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
         car.plan = _plan_strategy(car.driver, track, laps)
         car.compound = car.plan.compounds[0]
 
+    # The weather for the whole race, decided before lights-out and then read each
+    # lap. Dry unless this circuit's rain_chance rolls in.
+    conditions_by_lap = make_weather(track, laps)
+    prev_wetness = 0.0
+
     history = []
 
     # Resolve the standing start: this seeds each car's total_time with a real
@@ -675,6 +747,20 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
     start_events = _run_start(cars)
 
     for lap in range(1, laps + 1):
+        cond = conditions_by_lap[lap - 1]
+        # Has the conditions crossed a tyre-crossover since last lap? That's the cue
+        # for a weather CALL (and what flips everyone's needed tyre).
+        weather_change = ""
+        if cond.wetness >= WET_CROSSOVER > prev_wetness:
+            weather_change = "rain_intensifies"
+        elif cond.wetness >= INTER_CROSSOVER > prev_wetness:
+            weather_change = "rain_begins"
+        elif cond.wetness < INTER_CROSSOVER <= prev_wetness:
+            weather_change = "track_dry"
+        elif cond.wetness < WET_CROSSOVER <= prev_wetness:
+            weather_change = "rain_eases"
+        prev_wetness = cond.wetness
+
         running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
         # Pre-lap gap to the car directly ahead (race-time, from last lap's totals).
         # This is the 'am I stuck behind someone?' signal the undercut decision reads.
@@ -690,9 +776,14 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
             old_total = car.total_time
             tyre = _tyre_penalty(car, track)
             grip = car.compound.grip
-            lap_time = simulate_lap(car.driver, track) + car.damage + tyre + grip  # damage AND tyres tax the lap
+            # The weather tax: a wet track is slower for everyone (WET_LAP_FACTOR), and
+            # the wrong tyre for the conditions adds its own penalty on top. Both are
+            # zero in the dry, so a dry lap is exactly as it always was.
+            weather_pen = WET_LAP_FACTOR * cond.wetness + _condition_penalty(car.compound, cond.wetness)
+            lap_time = simulate_lap(car.driver, track) + car.damage + tyre + grip + weather_pen
             car.last_clean_lap = lap_time   # the honest pace lap -- captured BEFORE traffic/pit/incident muddy it
             time_lost = 0.0
+            needed = _needed_family(cond.wetness)             # which tyre the conditions call for
 
             # 0. Hopeless racecraft: the inevitable, race-ending error finally arrives
             if car.doomed_lap and lap >= car.doomed_lap:
@@ -709,8 +800,12 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                                           "major", 0.0, 0.0, 0.0, True))
                 continue
 
-            # 2. Solo mistake: a lone error, far likelier for low-racecraft drivers
-            if random.random() < SOLO_MISTAKE_CHANCE * length_scale * (1 - car.driver.racecraft):
+            # 2. Solo mistake: a lone error, far likelier for low-racecraft drivers --
+            # and far likelier still in the wet, especially on the wrong rubber.
+            wet_mult = 1.0 + WET_INCIDENT * cond.wetness
+            if car.compound.family != needed:
+                wet_mult *= WRONGTYRE_INCIDENT
+            if random.random() < SOLO_MISTAKE_CHANCE * length_scale * (1 - car.driver.racecraft) * wet_mult:
                 inc = _make_incident(car, lap, _solo_cause())
                 inc.location = _pick_corner(track)
                 incidents.append(inc)
@@ -719,26 +814,51 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                     _retire(car, lap, old_total, lap_time, time_lost)
                     continue
 
+            # 2a. Weather stop: the conditions now call for a different tyre family than
+            # the one fitted -- so the driver dives in for the right rubber. How quickly
+            # they react is their strategy mind (the planners pounce; the chargers
+            # slither on the wrong tyre a lap too long). This is an UNPLANNED stop: it
+            # doesn't touch the dry plan's pit_count, so the slick strategy resumes
+            # intact once the track comes back to them.
+            if car.compound.family != needed:
+                if random.random() < WEATHER_SWITCH_BASE + WEATHER_SWITCH_STRAT * car.driver.strategy:
+                    old_stint = car.stint_laps
+                    car.compound = _weather_tyre(needed)
+                    car.stint_laps = 0
+                    car.stops_made += 1
+                    time_lost += PIT_LOSS
+                    pit_stops.append(PitStop(car.driver.name, lap, car.stops_made,
+                                             old_stint, car.compound.name))
+                    car.total_time = old_total + lap_time + time_lost
+                    car.last_lap = car.total_time - old_total
+                    continue
+
             # 2b. Pit stop -- the planned lap, OR pulled forward to attack the car
             # directly ahead (a tactical undercut). Both box for the SAME planned
             # rubber and consume the same scheduled stop; the undercut just brings
             # its timing forward. The plan came from _plan_strategy; spotting the
             # undercut is the driver's `strategy` mind working live (see _wants_undercut).
-            scheduled = (car.pit_count < len(car.plan.pit_laps)
-                         and lap == car.plan.pit_laps[car.pit_count])
-            tactical = (not scheduled and i > 0
-                        and _wants_undercut(car, running[i - 1], gaps[i], lap))
-            if scheduled or tactical:
-                old_stint = car.stint_laps
-                car.pit_count += 1
-                car.compound = car.plan.compounds[car.pit_count]      # the fresh rubber
-                car.stint_laps = 0
-                time_lost += PIT_LOSS
-                pit_stops.append(PitStop(car.driver.name, lap, car.pit_count,
-                                         old_stint, car.compound.name))
-                car.total_time = old_total + lap_time + time_lost
-                car.last_lap = car.total_time - old_total
-                continue                                              # the in-lap skips the on-track fight
+            #
+            # Suspended while the track needs rain tyres: nobody makes their planned
+            # DRY stop in the wet. A stop whose lap fell during the rain isn't lost --
+            # the `>=` lets it happen on the first dry lap after, once slicks are back.
+            if needed == "slick":
+                scheduled = (car.pit_count < len(car.plan.pit_laps)
+                             and lap >= car.plan.pit_laps[car.pit_count])
+                tactical = (not scheduled and i > 0
+                            and _wants_undercut(car, running[i - 1], gaps[i], lap))
+                if scheduled or tactical:
+                    old_stint = car.stint_laps
+                    car.pit_count += 1
+                    car.stops_made += 1
+                    car.compound = car.plan.compounds[car.pit_count]      # the fresh rubber
+                    car.stint_laps = 0
+                    time_lost += PIT_LOSS
+                    pit_stops.append(PitStop(car.driver.name, lap, car.stops_made,
+                                             old_stint, car.compound.name))
+                    car.total_time = old_total + lap_time + time_lost
+                    car.last_lap = car.total_time - old_total
+                    continue                                              # the in-lap skips the on-track fight
 
             # 3. The leader runs in clear air
             if i == 0:
@@ -783,7 +903,8 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
 
             car.last_lap = car.total_time - old_total
 
-        history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops))
+        history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops,
+                                 conditions=cond, weather_change=weather_change))
 
     # Finalise the record: the live loop produced the racing; this reads the whole
     # history back and NAMES the pit-lane moves (undercuts) it created along the way.

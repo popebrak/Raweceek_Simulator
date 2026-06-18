@@ -113,8 +113,16 @@ def _tyre_tag(s):
     return f"  ({comp}{s.stint_laps}L)"
 
 
-def render_standings(standings, lap, total_laps):
-    lines = [f"  LAP {lap}/{total_laps}", "  " + "-" * 66]
+def _weather_tag(conditions):
+    """A compact conditions read for the board header: label + air/track temps."""
+    if conditions is None:
+        return ""
+    return (f"   |   {conditions.label.upper()}"
+            f"   air {round(conditions.air_temp)}C  track {round(conditions.track_temp)}C")
+
+
+def render_standings(standings, lap, total_laps, conditions=None):
+    lines = [f"  LAP {lap}/{total_laps}{_weather_tag(conditions)}", "  " + "-" * 66]
     for s in standings:
         if s.retired:
             lines.append(f"  --  {s.name:<21} {s.team:<15} OUT  (DNF, lap {s.retired_on_lap})")

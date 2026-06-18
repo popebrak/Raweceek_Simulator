@@ -63,7 +63,7 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
 
     def draw(report):
         print(CLEAR_SCREEN, end="")
-        print(render_standings(report.standings, report.lap, total_laps))
+        print(render_standings(report.standings, report.lap, total_laps, report.conditions))
         print()                                   # a line of space before the commentary
         print(DIVIDER)
         print("  COMMENTARY")
@@ -90,6 +90,14 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         def play(bit):
             for role, line in bit.turns:            # a Bit is one or more turns of banter
                 say(role, line)
+
+        # A change in the weather is a headline -- call it first, because it sets up
+        # everything that follows (the spins, the dive for the pit lane). Reactive to
+        # the moment, so it never reads stale.
+        if report.weather_change:
+            wbit = booth.for_weather(report.weather_change)
+            if wbit:
+                play(wbit)
 
         for inc in report.incidents:
             say("pbp", _call(render_commentary(inc)))
@@ -144,8 +152,18 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
                 for role, line in runin.turns:
                     commentary.append(voice(report.lap, role, line))
             else:
-                for role, line in booth.next_chatter(report.standings, report.lap):
-                    commentary.append(voice(report.lap, role, line))
+                # Some quiet laps go to the weather (temps and sky on a dry day, the
+                # state of the track on a wet one) rather than the philosophy thread --
+                # fresh material that exists on every single lap, which is the whole
+                # reason the weather earns its place in the booth.
+                ambient = (booth.weather_ambient(report.conditions)
+                           if random.random() < 0.35 else None)
+                if ambient:
+                    for role, line in ambient.turns:
+                        commentary.append(voice(report.lap, role, line))
+                else:
+                    for role, line in booth.next_chatter(report.standings, report.lap):
+                        commentary.append(voice(report.lap, role, line))
             draw(report)
             time.sleep(lap_budget)
 

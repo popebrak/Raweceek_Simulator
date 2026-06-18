@@ -128,6 +128,100 @@ _RUNIN = {
     },
 }
 
+# Weather CALLS -- spoken when the conditions cross a tyre crossover. Like the run-in,
+# this is reactive to live state (the booth says it because it just happened), so it's
+# inherently fresh; several phrasings per change keep even back-to-back showers varied.
+_WEATHER = {
+    "rain_begins": {
+        "pbp": ["And it's starting to rain! Spots of rain appearing across the circuit!",
+                "Rain! Here it comes -- and this track will go greasy in a hurry!",
+                "The rain everyone's been watching the skies for -- it's arriving, right now!"],
+        "colour": ["Decision time. Slicks are living on borrowed laps from here.",
+                   "This is where the strategists earn their keep. Intermediates, and soon.",
+                   "The brave stay out a lap too long. The smart are already boxing."],
+    },
+    "rain_intensifies": {
+        "pbp": ["It's really coming down now -- this has become a proper downpour!",
+                "The heavens have opened! This is full wet-weather territory now!"],
+        "colour": ["Inters won't live in this. They need the full wets, every one of them.",
+                   "You can barely see out there. This is survival now, not racing."],
+    },
+    "rain_eases": {
+        "pbp": ["The rain's easing off -- and a dry line just might start to appear!",
+                "It's backing off now -- the worst of this may be behind them!"],
+        "colour": ["Back to inters, and whoever reads the next few laps right gets the jump.",
+                   "Now it flips the other way -- too early onto slicks and you're a passenger."],
+    },
+    "track_dry": {
+        "pbp": ["And the track is dry enough for slicks again -- the gamble is ON!",
+                "Slicks are coming back! The racing line has come good!"],
+        "colour": ["The crossover is the whole race now. A lap too early and it's chaos.",
+                   "First one brave enough for slicks flies -- if they keep it out of the wall."],
+    },
+}
+
+# Calm-weather AMBIENT -- the filler that makes the user's wish come true: something
+# to say even when the weather is lovely and nothing is happening. Generated from the
+# temperatures and the sky, bucketed, and never repeated back-to-back from a bucket.
+_AMBIENT = {
+    "hot": [
+        ("Track temperature really climbing now -- well up into the forties.",
+         "Hot as that, the tyres give up early. Whoever manages them wins this."),
+        ("They're reporting a scorching surface out there this afternoon.",
+         "Cooking, that tarmac. The second stint becomes a fight with the rear tyres."),
+        ("Heat haze shimmering off the start-finish straight now.",
+         "On a track this hot it's not about outright pace -- it's about who's kindest to the rubber."),
+        ("The sun is full out and that asphalt is baking.",
+         "Thermal degradation, this. They'll be nursing those tyres home, you watch."),
+    ],
+    "cold": [
+        ("A cool, grey afternoon, and a cold track underneath them.",
+         "Cold as this, they'll struggle to switch the tyres on. Out-laps will be lurid."),
+        ("Air temperature has dropped -- not much warmth in this track at all.",
+         "This is when the snaps come from nowhere. No heat in the rubber, no warning."),
+        ("Grey skies, a chilly wind down the straight, a cold surface.",
+         "Graining weather, this. The fronts will go off long before the rears."),
+        ("Barely double figures on the air temperature now.",
+         "They'll be weaving like mad on the warm-up laps just to find some grip."),
+    ],
+    "fair": [
+        ("Glorious conditions over the circuit -- barely a cloud up there.",
+         "Perfect for it. No hiding place out there today, just racing."),
+        ("Warm, settled, a lovely day for a Grand Prix.",
+         "Textbook conditions. This is where the genuinely quick ones simply rise."),
+        ("Still bone dry, and the skies are staying kind for now.",
+         "Long may it last -- though they are keeping an eye on those clouds over the hills."),
+        ("A gentle breeze, a warm track, ideal racing weather.",
+         "Nothing to blame but yourself in conditions like these. Pure driving."),
+        ("Settled and dry, the perfect stage for them.",
+         "When it's this benign, the grid order tends to tell the truth. No lottery today."),
+    ],
+    "greasy": [
+        ("Just a few spots in the air, and the track's gone slick and shiny.",
+         "Treacherous, this in-between. Slicks underneath them, but no faith in them at all."),
+        ("That surface is glistening now -- caught between dry and wet.",
+         "Worst of both worlds, this. Too wet to attack, too dry to box. Horrible."),
+        ("A greasy sheen across the whole circuit now.",
+         "One wrong throttle input and they're gone. Nobody trusts the grip an inch."),
+    ],
+    "damp": [
+        ("Damp all the way round, spray kicking up behind every car.",
+         "Intermediate weather through and through. Tip-toe stuff, this."),
+        ("A greasy, damp circuit, the inters just about coping.",
+         "It's all about commitment now. Hesitate and you're nowhere; overdo it and you're gone."),
+        ("Persistent drizzle, the track soaked but not flooded.",
+         "Prime intermediate conditions. The feel for it now is everything -- you can't fake this."),
+    ],
+    "wet": [
+        ("Standing water in places now -- great plumes of spray off the back of them!",
+         "Anyone who keeps it on the island in this earns a medal, never mind a trophy."),
+        ("It is streaming out there, rivers running across the racing line.",
+         "Visibility nil, aquaplaning everywhere. This is as hard as their job ever gets."),
+        ("Full wets and still struggling -- it is biblical out there now.",
+         "At this point it's not racing, it's bravery. Half of them can't see the car ahead."),
+    ],
+}
+
 
 class Booth:
     """One per race. Holds the circuit and the memory of which Bits it has used."""
@@ -136,6 +230,8 @@ class Booth:
         self.circuit = track.circuit if track else ""
         self.used = set()
         self._last_runin = {}                       # (bucket, role) -> last template index used
+        self._last_weather = {}                     # change -> (last pbp idx, last colour idx)
+        self._ambient_used = {}                     # bucket -> set of pair indices already aired
         self._thread = []                           # remaining turns of the active discussion
         self._used_threads = set()                  # threads already run this race
         self._last_about = frozenset()              # subjects of the last thread (avoid back-to-back)
@@ -305,6 +401,52 @@ class Booth:
             "Deserved every inch of that. Cracking drive.",
         ])
         return banter([("pbp", vale), ("colour", benny)])
+
+    # --- weather: the live conditions, as commentary ------------------------
+    def for_weather(self, change):
+        """A weather CALL -- the track has crossed a tyre crossover (rain begins,
+        intensifies, eases, or dries). Reactive to the moment, so always fresh; the
+        booth avoids repeating a phrasing back-to-back across a flickering shower."""
+        bucket = _WEATHER.get(change)
+        if not bucket:
+            return None
+        last_p, last_c = self._last_weather.get(change, (None, None))
+        pj = [i for i in range(len(bucket["pbp"])) if i != last_p] or list(range(len(bucket["pbp"])))
+        cj = [i for i in range(len(bucket["colour"])) if i != last_c] or list(range(len(bucket["colour"])))
+        pi, ci = random.choice(pj), random.choice(cj)
+        self._last_weather[change] = (pi, ci)
+        return banter([("pbp", bucket["pbp"][pi]), ("colour", bucket["colour"][ci])])
+
+    def weather_ambient(self, conditions):
+        """Quiet-lap filler GENERATED from the conditions -- temps and sky on a dry
+        day, the state of the track on a wet one. This is the answer to 'give them
+        something to say even when the weather is calm': there is always a reading to
+        remark on, and it drifts lap to lap so it never lands the same way twice."""
+        if conditions is None:
+            return None
+        label = conditions.label
+        if label == "dry":
+            if conditions.track_temp >= 40:
+                bucket = "hot"
+            elif conditions.track_temp <= 16:
+                bucket = "cold"
+            else:
+                bucket = "fair"
+        else:
+            bucket = label                       # "greasy" | "damp" | "wet"
+        pairs = _AMBIENT.get(bucket)
+        if not pairs:
+            return None
+        # Air every line in a bucket once before any of them comes round again -- so a
+        # long, settled afternoon works through all its remarks instead of echoing two.
+        used = self._ambient_used.setdefault(bucket, set())
+        if len(used) >= len(pairs):
+            used.clear()
+        pool = [i for i in range(len(pairs)) if i not in used]
+        i = random.choice(pool)
+        used.add(i)
+        pbp_line, colour_line = pairs[i]
+        return banter([("pbp", pbp_line), ("colour", colour_line)])
 
     # --- the shows: off-clock segments before and after the race ------------
     def preview(self, quali, track):

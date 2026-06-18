@@ -39,6 +39,8 @@ class Track:
     corners: list                # list[Corner]
     race_distance_km: float = 305.0   # F1 standard; Monaco is the exception
     tyre_wear: float = 1.0       # abrasiveness: >1 chews tyres (Silverstone), <1 is gentle (Monaco)
+    rain_chance: float = 0.18    # chance a race sees a rain shower (feeds weather.make_weather)
+    temp_range: tuple = (16, 30) # plausible air temperature band, in degrees C
 
     @property
     def laps(self):
@@ -50,6 +52,7 @@ CALENDAR = [
     Track(
         "Italian Grand Prix", "Monza", "Italy",
         lap_length_km=5.793, base_lap_time=81.0, overtaking_difficulty=0.03, tyre_wear=0.55,
+        rain_chance=0.12, temp_range=(20, 33),
         character="The Temple of Speed -- long straights, big tows, easy passing.",
         corners=[
             Corner("the Variante del Rettifilo", overtaking=True),
@@ -64,6 +67,7 @@ CALENDAR = [
     Track(
         "Belgian Grand Prix", "Spa-Francorchamps", "Belgium",
         lap_length_km=7.004, base_lap_time=105.0, overtaking_difficulty=0.07, tyre_wear=1.00,
+        rain_chance=0.42, temp_range=(12, 24),
         character="Long, fast and sweeping -- the Kemmel straight rewards a brave tow.",
         corners=[
             Corner("La Source", overtaking=True),
@@ -79,6 +83,7 @@ CALENDAR = [
         "Monaco Grand Prix", "Monte Carlo", "Monaco",
         lap_length_km=3.337, base_lap_time=73.0, overtaking_difficulty=0.45, tyre_wear=0.15,
         race_distance_km=260.0,
+        rain_chance=0.18, temp_range=(18, 30),
         character="The jewel in the crown -- and a fortress. Track position is everything.",
         corners=[
             Corner("Sainte Devote"),
@@ -96,6 +101,7 @@ CALENDAR = [
     Track(
         "British Grand Prix", "Silverstone", "United Kingdom",
         lap_length_km=5.891, base_lap_time=88.0, overtaking_difficulty=0.12, tyre_wear=1.3,
+        rain_chance=0.32, temp_range=(12, 25),
         character="Fast and flowing -- Maggotts and Becketts, then a run to Stowe.",
         corners=[
             Corner("Abbey"),
@@ -113,6 +119,7 @@ CALENDAR = [
     Track(
         "Japanese Grand Prix", "Suzuka", "Japan",
         lap_length_km=5.807, base_lap_time=91.0, overtaking_difficulty=0.22, tyre_wear=1.2,
+        rain_chance=0.30, temp_range=(14, 27),
         character="A flowing figure-of-eight -- technical, narrow, hard to pass.",
         corners=[
             Corner("the First Curve"),
@@ -128,6 +135,7 @@ CALENDAR = [
     Track(
         "Sao Paulo Grand Prix", "Interlagos", "Brazil",
         lap_length_km=4.309, base_lap_time=71.0, overtaking_difficulty=0.10, tyre_wear=0.92,
+        rain_chance=0.35, temp_range=(16, 30),
         character="Short, anticlockwise and full of elevation -- the Senna S bites.",
         corners=[
             Corner("the Senna S", overtaking=True),
