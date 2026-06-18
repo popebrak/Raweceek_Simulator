@@ -156,7 +156,7 @@ class CarState:
     stint_laps: int = 0               # laps on the current set of tyres -- resets at a pit stop
     pit_count: int = 0                # how many stops made so far
     compound: Compound = MEDIUM       # the tyre currently fitted
-    plan: RacePlan = None             # the pre-race strategy (None = legacy no-tyre mode)
+    plan: RacePlan = None             # the pre-race strategy, assigned by _plan_strategy before lights-out
 
     @property
     def damage(self):
@@ -177,11 +177,32 @@ class Standing:
     retired: bool
     retired_on_lap: int
     stint_laps: int = 0          # laps on the current tyres -- for the timing tower
-    compound: str = ""           # the tyre currently fitted ("" in legacy mode)
+    compound: str = ""           # the tyre currently fitted
 
     @property
     def damage(self):
         return self.aero_damage + self.suspension_damage
+
+    @classmethod
+    def from_car(cls, car, position, gap_to_leader):
+        """Snapshot a live CarState into a Standing. Keyword args on purpose: add a
+        field to the car and you thread it through HERE, in one place, instead of a
+        fragile positional constructor buried in _standings()."""
+        return cls(
+            position=position,
+            name=car.driver.name,
+            team=car.driver.team,
+            grid_position=car.grid_position,
+            total_time=car.total_time,
+            last_lap=car.last_lap,
+            gap_to_leader=gap_to_leader,
+            aero_damage=car.aero_damage,
+            suspension_damage=car.suspension_damage,
+            retired=car.retired,
+            retired_on_lap=car.retired_on_lap,
+            stint_laps=car.stint_laps,
+            compound=car.compound.name,
+        )
 
 
 @dataclass
@@ -232,16 +253,14 @@ class LapReport:
     pit_stops: list = field(default_factory=list)   # list[PitStop]
 
 
-def simulate_lap(driver, track=None):
-    """One lap in seconds. With a track, the abstract pace is scaled to a real
-    lap time (pace and consistency scale together); without one, pace is the lap."""
+def simulate_lap(driver, track):
+    """One lap in seconds: the abstract pace scaled to the track's real lap time
+    (pace and consistency scale together, so a steadier driver stays steadier)."""
     raw = driver.pace + random.gauss(0, driver.consistency)
-    if track is None:
-        return raw
     return raw * (track.base_lap_time / REFERENCE_PACE)
 
 
-def run_qualifying(grid, track=None):
+def run_qualifying(grid, track):
     """Each driver sets one flying lap. Apply the 107% rule.
 
     Returns a list of (driver, lap, qualified) sorted fastest first. A driver is
@@ -370,13 +389,8 @@ def _standings(cars):
     retired = sorted((c for c in cars if c.retired), key=lambda c: -c.retired_on_lap)
     leader_time = active[0].total_time if active else 0.0
     ordered = active + retired
-    return [
-        Standing(pos, c.driver.name, c.driver.team, c.grid_position,
-                 c.total_time, c.last_lap, c.total_time - leader_time,
-                 c.aero_damage, c.suspension_damage, c.retired, c.retired_on_lap,
-                 c.stint_laps, c.compound.name if c.plan is not None else "")
-        for pos, c in enumerate(ordered, start=1)
-    ]
+    return [Standing.from_car(c, pos, c.total_time - leader_time)
+            for pos, c in enumerate(ordered, start=1)]
 
 
 def _retire(car, lap, old_total, lap_time, time_lost):
@@ -387,8 +401,8 @@ def _retire(car, lap, old_total, lap_time, time_lost):
 
 def _pick_corner(track, overtaking=False):
     """Where did it happen? Passing moves favour the track's overtaking spots;
-    solo errors can happen anywhere. Returns "" when there's no track."""
-    if track is None or not track.corners:
+    solo errors can happen anywhere. Returns "" only if the track has no corners."""
+    if not track.corners:
         return ""
     pool = [c.name for c in track.corners if c.overtaking] if overtaking else []
     if not pool:                                   # no OT corners, or a solo error
@@ -435,8 +449,7 @@ def _tyre_penalty(car, track):
     s = car.stint_laps
     penalty = TYRE_LINEAR * s + TYRE_QUAD * s * s
     penalty *= car.compound.wear                            # soft wears fast, hard slow
-    if track is not None:
-        penalty *= getattr(track, "tyre_wear", 1.0)         # abrasive tracks chew tyres
+    penalty *= track.tyre_wear                              # abrasive tracks chew tyres
     penalty *= 1.0 - (car.driver.tire_management - 0.5) * TYRE_MGMT_SWING
     return max(0.0, penalty)
 
@@ -454,7 +467,7 @@ def _plan_strategy(driver, track, laps):
     rubber. A master like Machiavelli almost always lands on the true optimum.
     """
     # This driver's effective wear scaling at this track (management + abrasiveness).
-    w = getattr(track, "tyre_wear", 1.0) * (1.0 - (driver.tire_management - 0.5) * TYRE_MGMT_SWING)
+    w = track.tyre_wear * (1.0 - (driver.tire_management - 0.5) * TYRE_MGMT_SWING)
 
     # Precompute the cost of running each compound for n laps (variable time only:
     # grip + wear; the constant base lap is identical across plans, so it drops out).
@@ -503,14 +516,13 @@ def _plan_strategy(driver, track, laps):
     return chosen[1]
 
 
-def run_race(starting_grid, track=None, laps=None, difficulty=None):
+def run_race(starting_grid, track, laps=None, difficulty=None):
     # The track supplies the race distance and how hard it is to pass; either can
-    # still be overridden by hand (handy for testing). Falls back to the old
-    # defaults when no track is given, so existing callers keep working.
+    # still be overridden by hand (handy for testing).
     if laps is None:
-        laps = track.laps if track is not None else 40
+        laps = track.laps
     if difficulty is None:
-        difficulty = track.overtaking_difficulty if track is not None else 0.10
+        difficulty = track.overtaking_difficulty
 
     # Keep per-race attrition steady regardless of how long the race is.
     length_scale = BASELINE_LAPS / laps
@@ -525,12 +537,10 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
             car.doomed_lap = random.randint(1, laps)
 
     # Pre-race strategy: each car commits to a plan (compounds + pit laps) and bolts
-    # on its starting tyre. Only with a real track (which supplies wear/abrasiveness);
-    # without one we stay in legacy no-tyre mode.
-    if track is not None:
-        for car in cars:
-            car.plan = _plan_strategy(car.driver, track, laps)
-            car.compound = car.plan.compounds[0]
+    # on its starting tyre before the lights go out.
+    for car in cars:
+        car.plan = _plan_strategy(car.driver, track, laps)
+        car.compound = car.plan.compounds[0]
 
     history = []
 
@@ -548,11 +558,8 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
         for i, car in enumerate(running):
             car.stint_laps += 1                                       # another lap on this set
             old_total = car.total_time
-            if car.plan is None:
-                tyre = grip = 0.0                                     # legacy no-tyre mode
-            else:
-                tyre = _tyre_penalty(car, track)
-                grip = car.compound.grip
+            tyre = _tyre_penalty(car, track)
+            grip = car.compound.grip
             lap_time = simulate_lap(car.driver, track) + car.damage + tyre + grip  # damage AND tyres tax the lap
             time_lost = 0.0
 
@@ -581,11 +588,11 @@ def run_race(starting_grid, track=None, laps=None, difficulty=None):
                     _retire(car, lap, old_total, lap_time, time_lost)
                     continue
 
-            # 2b. Pit stop -- now driven by the PLAN, not a reactive threshold. If
-            # this lap is the next scheduled stop, box: fit the planned compound,
-            # reset the tyres, eat the pit loss. The plan was built pre-race by
+            # 2b. Pit stop -- driven by the PLAN, not a reactive threshold. If this
+            # lap is the next scheduled stop, box: fit the planned compound, reset
+            # the tyres, eat the pit loss. The plan was built pre-race by
             # _plan_strategy; how good it is depends on the driver's `strategy`.
-            if (car.plan is not None and car.pit_count < len(car.plan.pit_laps)
+            if (car.pit_count < len(car.plan.pit_laps)
                     and lap == car.plan.pit_laps[car.pit_count]):
                 old_stint = car.stint_laps
                 car.pit_count += 1
@@ -672,7 +679,16 @@ class RaceSummary:
     overtakes_count: int = 0   # clean on-track passes for position across the race
 
 
-def summarize_race(history, track=None):
+# A "flying lap" worth calling the fastest is one close to the track's clean lap.
+# Defining the band RELATIVE to base_lap_time is the whole point: a fixed seconds
+# window broke the moment lap times started scaling per circuit (Spa's ~105s laps
+# fell off the top, Monaco's ~73s off the bottom). Pit in-laps (+PIT_LOSS) and
+# incident laps land well outside this band, so the quickest in-band lap is real.
+FASTLAP_MIN = 0.90      # nothing genuine is quicker than 90% of a clean lap
+FASTLAP_MAX = 1.12      # slower than this is traffic or a stop, not a flyer
+
+
+def summarize_race(history, track):
     """Distil a finished race `history` into a RaceSummary of key facts."""
     final = history[-1].standings
     total_laps = len(history)
@@ -703,11 +719,14 @@ def summarize_race(history, track=None):
     # Fastest lap. APPROXIMATE: the engine folds traffic (dirty air, being held
     # up) into last_lap, so this is the best clean-ish lap seen, not a true
     # isolated flyer. A proper version means recording each car's raw pace lap
-    # separately in run_race -- a good, well-contained future tweak.
+    # separately in run_race -- a good, well-contained future tweak. The band is
+    # relative to this track's clean lap (see FASTLAP_MIN/MAX) so it scales per circuit.
+    lo = track.base_lap_time * FASTLAP_MIN
+    hi = track.base_lap_time * FASTLAP_MAX
     fl_driver, fl_time = "", float("inf")
     for rep in history:
         for s in rep.standings:
-            if not s.retired and 80.0 < s.last_lap < 100.0 and s.last_lap < fl_time:
+            if not s.retired and lo < s.last_lap < hi and s.last_lap < fl_time:
                 fl_time, fl_driver = s.last_lap, s.name
     if not fl_driver:
         fl_time = 0.0
@@ -732,7 +751,7 @@ def summarize_race(history, track=None):
                           if ov.position <= 3 and ov.location != "the start")
 
     return RaceSummary(
-        circuit=track.circuit if track is not None else "",
+        circuit=track.circuit,
         total_laps=total_laps, starters=starters, finishers=finishers,
         winner=winner.name if winner else "(no finishers)",
         team=winner.team if winner else "",
