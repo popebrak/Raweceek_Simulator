@@ -1,20 +1,23 @@
-"""The colour analyst -- the SECOND voice in the booth.
+"""The booth -- the two voices and the logic that decides who says what.
 
-display.render_* is the lap caller: it says WHAT just happened (a pass, a crash, a
-stop). This module is the colour analyst beside them, saying what it MEANS -- the
-history between two drivers, a team's character, a track's ghosts.
+display.render_* is the lap caller's FACTUAL line (a pass, a crash, a stop). This
+module wraps two things around that:
 
-It is a second consumer of the very same event stream the lap caller reads -- an
-Overtake, an Incident, the running order. Given a moment it reaches into lore.py
-for a line that fits, prefers the rare relational gold (Nietzsche on Plato) over
-generic filler, and remembers what it has already said so it never repeats itself
-in a race.
+  * the PERSONAS -- who is in the booth. The lore speaks in roles ("pbp", "colour");
+    here we map those roles to names, so renaming the commentators, or swapping in a
+    third, is a one-line change. `voice()` stamps each feed line with its speaker, so
+    the whole feed reads as a transcript of two people rather than anonymous calls.
 
-The quietest, most important hook is the green-flag LULL: a lap with no events at
-all, where main.py would otherwise sit in silence. That is exactly where a real
-booth fills the air with backstory -- so for_lull is where the analyst earns its
-seat. The selection is a PRIORITY policy (specific gold first, generic last), the
-same shape as the "is this pass even worth calling?" threshold already in display.
+  * the director (Booth) -- a second consumer of the very same event stream the lap
+    caller reads. Given a moment it reaches into lore.py for a BIT (a one-liner or a
+    multi-turn exchange), prefers the rare relational gold over generic filler, and
+    remembers what it has used so nothing repeats in a race. The selection is a
+    PRIORITY policy, the same shape as the "is this pass worth calling?" threshold.
+
+The marquee hook is the green-flag LULL: a lap with no events, where a real booth
+fills the air with backstory and banter -- so for_lull is where the pair earns their
+seats. The lap caller has ALREADY voiced the factual line by the time a Bit plays,
+so an overtake Bit is the REACTION to the move, never a re-call of it.
 """
 
 import random
@@ -23,29 +26,51 @@ from lore import (DRIVER_LORE, PAIR_LORE, TEAM_LORE, TRACK_LORE,
                   DRIVER_TRACK_LORE, GENERIC)
 
 
+# Who's in the booth. Roles -> names. Change these two strings and the whole feed
+# re-casts itself; add a third role here (and turns in lore.py) for a three-hander.
+PERSONAS = {
+    "pbp":    "Vale",     # the lap caller: excitable, plummy, sets his man up
+    "colour": "Benny",    # the sidekick: ex-racer, dry, thinks the philosophy is daft
+}
+_TAG_WIDTH = max(len(n) for n in PERSONAS.values()) + 1   # room for the colon
+
+
+def voice(lap, role, text):
+    """One feed line, stamped with its speaker -- so the feed reads as a transcript.
+    The speaker label is what tells the two voices apart; there's no '>>' marker."""
+    tag = PERSONAS.get(role, "?").upper() + ":"
+    return f"  L{lap:>2}  {tag:<{_TAG_WIDTH}} {text}"
+
+
 # How often an ORDINARY pass (no authored rivalry) earns a line about the passer.
-# Genuine rivalries always get called; this keeps us from editorialising every
-# single midfield lunge into a history lecture.
-PLAIN_OVERTAKE_COLOUR = 0.3
+# A genuine rivalry always gets called; this keeps us from reacting to every lunge.
+PLAIN_OVERTAKE_COLOUR = 0.35
+
+# Minimum laps between two LULL fills. A real booth lets a green-flag spell breathe
+# rather than narrating every quiet lap -- without this, a long procession turns
+# into a back-to-back roll-call of every team. Events are unaffected; this only
+# paces the backstory filler.
+LULL_COOLDOWN = 4
 
 
-class ColourCommentator:
-    """One per race. Holds the circuit and the memory of what's been said."""
+class Booth:
+    """One per race. Holds the circuit and the memory of which Bits it has used."""
 
     def __init__(self, track):
         self.circuit = track.circuit if track else ""
         self.used = set()
+        self._last_lull_lap = -LULL_COOLDOWN       # so the first quiet lap can speak
 
-    def _pick(self, candidates, tags):
-        """From a pool of Colour, keep those whose trigger is in `tags` and that we
-        haven't used yet, then choose one (weighted). Mark it used; return its text,
-        or None if the pool is dry. Marking-on-use is what guarantees no repeats."""
-        pool = [c for c in candidates if c.when in tags and c.line not in self.used]
+    def _pick(self, bits, tags):
+        """Keep Bits whose trigger is in `tags` and that we haven't used, then choose
+        one (weighted). Mark it used; return it, or None. Marking is what stops a Bit
+        ever repeating within a race."""
+        pool = [b for b in bits if b.when in tags and b not in self.used]
         if not pool:
             return None
-        chosen = random.choices(pool, weights=[c.weight for c in pool])[0]
-        self.used.add(chosen.line)
-        return chosen.line
+        chosen = random.choices(pool, weights=[b.weight for b in pool])[0]
+        self.used.add(chosen)
+        return chosen
 
     def _pair_any_order(self, a, b, tags):
         """Pair lore that reads either way (a rivalry) -- try both orderings."""
@@ -54,26 +79,22 @@ class ColourCommentator:
 
     # --- event-triggered colour ---------------------------------------------
     def for_overtake(self, ov):
-        """The history behind a completed pass. A real rivalry is the money moment
-        and always gets called; an ordinary pass gets the passer's character only
-        sometimes, so the good lines stay special."""
+        """The booth's reaction to a completed pass. A real rivalry is the money
+        moment and always plays; the start gets a quick character quip only for the
+        drivers who have one; an ordinary pass gets a reaction only sometimes."""
         if ov.location == "the start":
-            pool = DRIVER_LORE.get(ov.passer, [])
-            return self._pick(pool, {"start"}) or self._pick(pool, {"any"})
-
-        # Directional: the line names who passed whom, so only this ordering fits.
+            return self._pick(DRIVER_LORE.get(ov.passer, []), {"start"})
+        # Directional: the lore names who passed whom, so only this ordering fits.
         gold = self._pick(PAIR_LORE.get((ov.passer, ov.passed), []), {"overtake"})
         if gold:
             return gold
-
         if random.random() < PLAIN_OVERTAKE_COLOUR:
-            pool = DRIVER_LORE.get(ov.passer, [])
-            return self._pick(pool, {"overtake"}) or self._pick(pool, {"any"})
+            return self._pick(DRIVER_LORE.get(ov.passer, []), {"overtake", "any"})
         return None
 
     def for_incident(self, inc):
-        """A mistake or a retirement -- prefer a retirement-specific line when the
-        car is actually out, falling back through 'incident' to plain character."""
+        """Reaction to a mistake or a retirement -- prefer the retirement-specific
+        line when the car is actually out, then 'incident', then plain character."""
         pool = DRIVER_LORE.get(inc.driver_name, [])
         if inc.retirement:
             return (self._pick(pool, {"retirement"})
@@ -83,39 +104,46 @@ class ColourCommentator:
 
     # --- the green-flag lull: fill the silence ------------------------------
     def for_lull(self, standings, lap, total_laps):
-        """No events this lap. Reach for the most specific colour available, in
-        order: a live rivalry between two cars running nose-to-tail, then the
-        leader's bond with THIS track, the leader's own character, a team note,
-        the track's history, and finally generic filler -- so there is always a
-        line, but the specific gold gets first refusal."""
+        """No events this lap. After a cooldown (so we don't narrate every quiet
+        lap), reach for the most specific thing available, in order: a live rivalry
+        between two cars running nose-to-tail, then the leader's bond with THIS
+        track, the leader's own character, a team note, the track's ghosts, and
+        finally generic banter -- so there's always something, but the gold goes
+        first."""
+        if lap - self._last_lull_lap < LULL_COOLDOWN:
+            return None                             # let the green-flag spell breathe
         running = [s for s in standings if not s.retired]
 
         # 1. A simmering rivalry between cars currently next to each other.
+        bit = None
         for ahead, behind in zip(running, running[1:]):
-            line = self._pair_any_order(ahead.name, behind.name, {"rivalry"})
-            if line:
-                return line
+            bit = self._pair_any_order(ahead.name, behind.name, {"rivalry"})
+            if bit:
+                break
 
-        if running:
+        if bit is None and running:
             leader = running[0]
             # 2. The leader and this circuit -- the sharpest colour there is.
             pool = DRIVER_TRACK_LORE.get((leader.name, self.circuit), [])
-            line = self._pick(pool, {"leading"}) or self._pick(pool, {"any"})
-            if line:
-                return line
+            bit = self._pick(pool, {"leading"}) or self._pick(pool, {"any"})
             # 3. The leader's own character.
-            pool = DRIVER_LORE.get(leader.name, [])
-            line = self._pick(pool, {"leading"}) or self._pick(pool, {"any"})
-            if line:
-                return line
+            if bit is None:
+                pool = DRIVER_LORE.get(leader.name, [])
+                bit = self._pick(pool, {"leading"}) or self._pick(pool, {"any"})
             # 4. A team note -- pick a running team at random for variety.
-            teams = list({s.team for s in running})
-            random.shuffle(teams)
-            for team in teams:
-                line = self._pick(TEAM_LORE.get(team, []), {"any"})
-                if line:
-                    return line
+            if bit is None:
+                teams = list({s.team for s in running})
+                random.shuffle(teams)
+                for team in teams:
+                    bit = self._pick(TEAM_LORE.get(team, []), {"any"})
+                    if bit:
+                        break
 
-        # 5. The track's own ghosts, then 6. generic filler.
-        return (self._pick(TRACK_LORE.get(self.circuit, []), {"any"})
-                or self._pick(GENERIC, {"any"}))
+        # 5. The track's own ghosts, then 6. generic banter.
+        if bit is None:
+            bit = (self._pick(TRACK_LORE.get(self.circuit, []), {"any"})
+                   or self._pick(GENERIC, {"any"}))
+
+        if bit:
+            self._last_lull_lap = lap
+        return bit

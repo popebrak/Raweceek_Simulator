@@ -17,25 +17,41 @@ from simulation import run_qualifying, run_race, summarize_race
 from display import (print_timing_sheet, render_standings, render_commentary,
                      render_overtake, render_telemetry, render_result,
                      render_summary, track_banner, render_pit, render_undercut)
-from colour import ColourCommentator
+from colour import Booth, voice
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
 NOTABLE_OVERTAKE = 3         # baseline: call passes for this position or better; hard tracks widen it
 DIVIDER = "  " + "-" * 60
 
+# What's actually worth interrupting for. A real booth doesn't call every move and
+# every stop -- it calls what matters for the result. F1 scores the top ten, so a
+# pass outside the points rarely makes the broadcast; a midfield pit stop never
+# does. These three dials are where that judgement lives.
+POINTS_POSITIONS = 10        # passes below this rarely matter -- the points are the story
+PIT_CALL_POSITION = 6        # only the sharp end's stops are worth a mention
+START_JUMP_WORTH = 3         # a launch this big gets called even from outside the points
 
-def colour_line(lap, text):
-    """The colour analyst's voice in the feed -- prose, indented, and WITHOUT the
-    '>>' marker the lap caller uses, so the two voices read as distinct: '>>' is
-    what just happened, the indented prose is what it means."""
-    return f"  L{lap:>2}     {text}"
+
+def _call(text):
+    """Strip the render_* '>> ' marker -- the speaker label now carries attribution,
+    so the raw call no longer needs its own."""
+    t = text.strip()
+    return t[2:].strip() if t.startswith(">>") else t
+
+
+def _overtake_worth(ov, notable_pos):
+    """Is this pass worth a call? The lead and podium always are; elsewhere it has
+    to be for a points place (or, off the line, a genuine flier) to make the feed."""
+    if ov.location == "the start":
+        return ov.position <= POINTS_POSITIONS or ov.places_gained >= START_JUMP_WORTH
+    return ov.position <= min(notable_pos, POINTS_POSITIONS)
 
 
 def play_race(history, speed, track=None, show_telemetry=False):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
-    booth = ColourCommentator(track)              # the second voice: colour & backstory
+    booth = Booth(track)                           # the two voices: Vale (calls) & Benny (colour)
 
     # Which passes are worth a call depends on the circuit. Where passing is hard
     # (Monaco, Suzuka) even a midfield move is an event, so we call deeper into the
@@ -62,32 +78,44 @@ def play_race(history, speed, track=None, show_telemetry=False):
 
         # COMMENTARY is the spoken voice; TELEMETRY (the numbers) is an optional,
         # separate stream that never contaminates the feed a TTS engine reads.
+        # Every spoken line is now stamped with a speaker (voice()): Vale makes the
+        # factual call, Benny reacts -- and a Bit can be a whole exchange between them.
+        pos_of = {s.name: s.position for s in report.standings}
         new_lines = []
+
+        def say(role, text):
+            new_lines.append(voice(report.lap, role, text))
+
+        def play(bit):
+            for role, line in bit.turns:            # a Bit is one or more turns of banter
+                say(role, line)
+
         for inc in report.incidents:
-            new_lines.append(f"  L{report.lap:>2}  {render_commentary(inc).strip()}")
+            say("pbp", _call(render_commentary(inc)))
             if show_telemetry:
                 tele = render_telemetry(inc).strip()
                 if tele:
                     new_lines.append(f"        {tele}")
-            colour = booth.for_incident(inc)          # the analyst's gloss on the moment
-            if colour:
-                new_lines.append(colour_line(report.lap, colour))
-        # Call the passes worth calling. The standing start is always worth it --
-        # the first-lap scramble is the drama -- so start getaways bypass the
-        # threshold that governs ordinary corner passes.
+            bit = booth.for_incident(inc)           # Benny's take on the moment
+            if bit:
+                play(bit)
+        # Call the passes worth calling -- the lead and podium always, points places
+        # selectively, and a real flier off the line. Midfield churn stays silent.
         for ov in report.overtakes:
-            if ov.location == "the start" or ov.position <= notable_pos:
-                new_lines.append(f"  L{report.lap:>2}  {render_overtake(ov).strip()}")
-                colour = booth.for_overtake(ov)       # the history behind the move
-                if colour:
-                    new_lines.append(colour_line(report.lap, colour))
-        # Pit stops are always worth a mention -- they reshuffle the race.
+            if _overtake_worth(ov, notable_pos):
+                say("pbp", _call(render_overtake(ov)))
+                bit = booth.for_overtake(ov)        # the history behind the move
+                if bit:
+                    play(bit)
+        # Pit stops: only the sharp end's are worth interrupting for -- a midfield
+        # car ducking in reshuffles nothing the viewer is watching.
         for ps in report.pit_stops:
-            new_lines.append(f"  L{report.lap:>2}  {render_pit(ps).strip()}")
-        # An undercut completes on the victim's stop lap -- call it right after, so
-        # it reads as the consequence of the stop that just happened.
+            if pos_of.get(ps.driver_name, 99) <= PIT_CALL_POSITION:
+                say("pbp", _call(render_pit(ps)))
+        # An undercut completes on the victim's stop lap -- always worth calling, it
+        # IS the strategic story -- so it goes in right after the stop that made it.
         for uc in report.undercuts:
-            new_lines.append(f"  L{report.lap:>2}  {render_undercut(uc).strip()}")
+            say("pbp", _call(render_undercut(uc)))
 
         if new_lines:
             # Tick the new calls in one at a time, spread across the lap, so the
@@ -98,12 +126,12 @@ def play_race(history, speed, track=None, show_telemetry=False):
                 draw(report)
                 time.sleep(slice_time)
         else:
-            # A quiet green-flag lap -- exactly where a real booth fills the air
-            # with backstory. Ask the analyst for one line of colour; if it has
-            # something, it goes up before we draw and sleep the lap away.
-            colour = booth.for_lull(report.standings, report.lap, total_laps)
-            if colour:
-                commentary.append(colour_line(report.lap, colour))
+            # A quiet green-flag lap -- exactly where a real booth fills the air with
+            # backstory and banter. Ask the pair for a Bit; play whatever they've got.
+            bit = booth.for_lull(report.standings, report.lap, total_laps)
+            if bit:
+                for role, line in bit.turns:
+                    commentary.append(voice(report.lap, role, line))
             draw(report)
             time.sleep(lap_budget)
 
