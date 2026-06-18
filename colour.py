@@ -28,7 +28,7 @@ from drivers import GRID
 from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   GENERIC_INCIDENT, GENERIC_OVERTAKE, GENERIC_PIT,
                   Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK,
-                  # the calls -- Vale's factual lines, now owned by the booth
+                  # the calls -- Phill's factual lines, now owned by the booth
                   START_CALLS, OVERTAKE_CALLS, BATTLE_CALLS, SOLO_RETIRE,
                   OVERLIMIT_CALLS, DAMAGE_FAIL_CALLS, COLLISION_CALLS,
                   CAUSE_PHRASE, SOLO_FLOURISH, CONTACT_WORD, PIT_CALLS, UNDERCUT_CALLS,
@@ -49,7 +49,7 @@ for _d in GRID:
 # Who's in the booth. Roles -> names. Change these two strings and the whole feed
 # re-casts itself; add a third role here (and turns in lore.py) for a three-hander.
 PERSONAS = {
-    "pbp":    "Vale",     # the lap caller: excitable, plummy, sets his man up
+    "pbp":    "Phill",    # the lap caller: excitable, plummy, sets his man up
     "colour": "Benny",    # the sidekick: ex-racer, dry, thinks the philosophy is daft
     "report": "Suze",     # the pit-lane reporter: heard only on the podium, conducts the interviews
 }
@@ -297,12 +297,12 @@ class Booth:
         return (self._pick(PAIR_LORE.get((a, b), []), tags)
                 or self._pick(PAIR_LORE.get((b, a), []), tags))
 
-    # --- the calls: Vale's FACTUAL lines, with variety and spoken numbers -----
+    # --- the calls: Phill's FACTUAL lines, with variety and spoken numbers -----
     # The booth now owns these too (they used to live in display.render_*). Every
     # call is drawn from a deep pool, never repeated back-to-back (_fresh), and
     # every number is spelled, so the lap caller reads as clean as the colour man.
     def call_overtake(self, ov, lap):
-        """Vale's call for a completed pass. A re-pass between two cars already
+        """Phill's call for a completed pass. A re-pass between two cars already
         scrapping is collapsed into one ongoing-battle line, so trading places
         reads as a fight, not a stutter of identical calls."""
         if ov.location == "the start":
@@ -336,7 +336,7 @@ class Booth:
             driver=ov.passer, pos=_ord(ov.position), gained=_spell(ov.places_gained))
 
     def call_incident(self, inc):
-        """Vale's call for a mistake, a collision, or a retirement."""
+        """Phill's call for a mistake, a collision, or a retirement."""
         at = _at(inc.location)
         d = inc.driver_name
         if inc.cause == "over the limit":
@@ -364,7 +364,7 @@ class Booth:
         return f"{d} {phrase}{at} -- {flourish}"
 
     def call_pit(self, ps):
-        """Vale's call for a pit stop -- spoken, with the stint length in words."""
+        """Phill's call for a pit stop -- spoken, with the stint length in words."""
         onto = f" onto {ps.compound}s" if ps.compound else ""
         stint = _spell(ps.old_stint)
         if ps.stop_number >= 2:
@@ -374,11 +374,17 @@ class Booth:
             driver=ps.driver_name, onto=onto, stint=stint)
 
     def call_undercut(self, uc):
-        """Vale's call for an undercut completing -- a pass won in the pit lane."""
+        """Phill's call for an undercut completing -- a pass won in the pit lane."""
         earlier = "a lap" if uc.laps_earlier == 1 else f"{_spell(uc.laps_earlier)} laps"
         bucket = "lead" if uc.position == 1 else "points"
         return self._fresh(f"_uc_{bucket}", UNDERCUT_CALLS[bucket]).format(
             driver=uc.undercutter, other=uc.victim, earlier=earlier, pos=_ord(uc.position))
+
+    def lights_out(self):
+        """The green-flag call -- the SAME words every time, because some moments are
+        ritual and the regulars want to hear them. Phill marks the start; the booth
+        supplies the circuit name."""
+        return f"The lights are off, and we go racing in {self.circuit}!"
 
     # --- event-triggered colour ---------------------------------------------
     def for_overtake(self, ov):

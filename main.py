@@ -82,7 +82,7 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
               narrator=None):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
-    if booth is None:                              # the two voices: Vale (calls) & Benny (colour)
+    if booth is None:                              # the two voices: Phill (calls) & Benny (colour)
         booth = Booth(track)                       # shared with the pre/post-race shows when passed in
     if narrator is None:                           # no audio unless one is handed in
         narrator = SilentNarrator()
@@ -114,7 +114,7 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
 
         # COMMENTARY is the spoken voice; TELEMETRY (the numbers) is an optional,
         # separate stream that never contaminates the feed a TTS engine reads.
-        # Every spoken line is now stamped with a speaker (voice()): Vale makes the
+        # Every spoken line is now stamped with a speaker (voice()): Phill makes the
         # factual call, Benny reacts -- and a Bit can be a whole exchange between them.
         pos_of = {s.name: s.position for s in report.standings}
         new_lines = []        # each item is (role, text); role None = shown, never spoken
@@ -125,6 +125,11 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         def play(bit):
             for role, line in bit.turns:            # a Bit is one or more turns of banter
                 say(role, line)
+
+        # Lights out: the same green-flag call every time, the first words of the race
+        # -- it lands after the preview's "stand by" and just before the getaways.
+        if report is history[0]:
+            say("pbp", booth.lights_out())
 
         # A change in the weather is a headline -- call it first, because it sets up
         # everything that follows (the spins, the dive for the pit lane). Reactive to

@@ -187,11 +187,11 @@ def _speak_via_wav(narrator, role, text):
 # --- Piper: fast, local, neural; a clear step up from espeak, still CPU-only ---------
 # Voices are ONNX packs (an .onnx + matching .onnx.json) downloaded from the Piper
 # voices repo; point PIPER_VOICE_DIR at wherever you keep them. The role->voice map is
-# the same idea as espeak's: a distinct pack for Vale and for Benny.
+# the same idea as espeak's: a distinct pack for Phill and for Benny.
 PIPER_VOICE_DIR = os.environ.get("PIPER_VOICE_DIR") or \
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "voices")
 PIPER_VOICE = {
-    "pbp":    "en_GB-alan-medium.onnx",                  # Vale -- the lap caller
+    "pbp":    "en_GB-alan-medium.onnx",                  # Phill -- the lap caller
     "colour": "en_GB-northern_english_male-medium.onnx", # Benny -- the colour man
     "report": "en_US-ryan-high.onnx",                    # Suze -- the pit-lane reporter (the third voice in voices/README)
 }
@@ -252,7 +252,7 @@ class PiperNarrator(Narrator):
 # lang_code 'b' is British English, 'a' American; voices like bm_* / am_* pick the
 # speaker. Output is float audio at 24 kHz, which we pack to 16-bit PCM and write out.
 KOKORO_VOICE = {
-    "pbp":    ("b", "bm_george"),   # Vale -- British male
+    "pbp":    ("b", "bm_george"),   # Phill -- British male
     "colour": ("b", "bm_lewis"),    # Benny -- a different British male
 }
 KOKORO_DEFAULT = ("a", "am_michael")
@@ -376,14 +376,14 @@ def _tensor_to_pcm16(x):
 # and use Python 3.10 -- it's the version with prebuilt wheels for all the deps. The
 # "turbo" variant (~350M, ~4.5 GB VRAM) fits a 6 GB card; "original" (~500M) wants
 # ~6-7 GB. Voices come from short reference clips: drop a clean ~10-30 s WAV per role
-# in CHATTERBOX_REF_DIR and Vale/Benny become those voices; with no clip, the model's
+# in CHATTERBOX_REF_DIR and Phill/Benny become those voices; with no clip, the model's
 # built-in default voice is used (so both would sound alike). `exaggeration` dials
 # expressiveness: 0 flat, ~1 natural, >1 animated.
 CHATTERBOX_REF_DIR = os.environ.get("CHATTERBOX_REF_DIR") or \
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "refs")
 CHATTERBOX_VARIANT = (os.environ.get("CHATTERBOX_VARIANT") or "turbo").lower()
 CHATTERBOX_VOICE = {
-    "pbp":    {"ref": "vale.wav",  "exaggeration": 1.15},   # Vale -- a touch animated
+    "pbp":    {"ref": "phill.wav",  "exaggeration": 1.15},   # Phill -- a touch animated
     "colour": {"ref": "benny.wav", "exaggeration": 0.7},    # Benny -- dry and level
 }
 CHATTERBOX_DEFAULT = {"ref": None, "exaggeration": 1.0}

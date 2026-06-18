@@ -713,7 +713,7 @@ DISCUSSIONS = [
         ("pbp", "It's a strange grid, this -- the whole history of thought, in cars."),
         ("colour", "And every one of them dead certain the others are wrong. Twenty people who built their lives on never backing down, all asked to share one corner."),
         ("pbp", "What could go wrong."),
-        ("colour", "Everything, ideally. That's why we get up in the morning, Vale."),
+        ("colour", "Everything, ideally. That's why we get up in the morning, Phill."),
     ], topic="the grid"),
 
     discussion([
