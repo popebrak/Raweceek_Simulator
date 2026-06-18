@@ -323,7 +323,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run a philosophers' Grand Prix weekend in the terminal, with "
                     "optional spoken commentary.")
-    parser.add_argument("--voice", choices=["silent", "espeak", "piper", "kokoro"],
+    parser.add_argument("--voice", choices=["silent", "espeak", "piper", "kokoro", "chatterbox"],
                         default="silent",
                         help="who reads the commentary aloud (default: silent -- text only)")
     parser.add_argument("--track", default=None,
@@ -334,7 +334,7 @@ if __name__ == "__main__":
                         help="playback speed multiplier; ignored once a voice paces it")
     parser.add_argument("--render", metavar="FILE", default=None,
                         help="render the whole weekend to a WAV file instead of playing "
-                             "it live; needs a real --voice (espeak/piper/kokoro)")
+                             "it live; needs a real --voice (espeak/piper/kokoro/chatterbox)")
     args = parser.parse_args()
 
     if args.render:

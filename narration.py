@@ -344,8 +344,153 @@ class KokoroNarrator(Narrator):
         return _speak_via_wav(self, role, text) if self.available else False
 
 
+def _tensor_to_pcm16(x):
+    """Convert a torch tensor / numpy array / nested list of float samples (mono, in
+    [-1, 1]) to 16-bit little-endian PCM bytes, flattening to mono. The lingua franca
+    for getting model audio into a stdlib WAV without a torchaudio dependency."""
+    try:
+        if hasattr(x, "detach"):                 # torch tensor -> numpy
+            x = x.detach().cpu().numpy()
+        import numpy as np
+        a = np.asarray(x, dtype="float32").reshape(-1)
+        return (np.clip(a, -1, 1) * 32767).astype("<i2").tobytes()
+    except Exception:
+        try:
+            import array
+            flat = []
+            for v in x:
+                try:
+                    flat.extend(v)
+                except TypeError:
+                    flat.append(v)
+            return array.array("h", (int(max(-1.0, min(1.0, float(s))) * 32767)
+                                     for s in flat)).tobytes()
+        except Exception:
+            return b""
+
+
+# --- Chatterbox: Resemble AI's expressive, voice-cloning model -- the quality tier ----
+# Needs a CUDA GPU (it runs on CPU but painfully slowly). `pip install chatterbox-tts`,
+# and use Python 3.10 -- it's the version with prebuilt wheels for all the deps. The
+# "turbo" variant (~350M, ~4.5 GB VRAM) fits a 6 GB card; "original" (~500M) wants
+# ~6-7 GB. Voices come from short reference clips: drop a clean ~10-30 s WAV per role
+# in CHATTERBOX_REF_DIR and Vale/Benny become those voices; with no clip, the model's
+# built-in default voice is used (so both would sound alike). `exaggeration` dials
+# expressiveness: 0 flat, ~1 natural, >1 animated.
+CHATTERBOX_REF_DIR = os.environ.get("CHATTERBOX_REF_DIR") or \
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "refs")
+CHATTERBOX_VARIANT = (os.environ.get("CHATTERBOX_VARIANT") or "turbo").lower()
+CHATTERBOX_VOICE = {
+    "pbp":    {"ref": "vale.wav",  "exaggeration": 1.15},   # Vale -- a touch animated
+    "colour": {"ref": "benny.wav", "exaggeration": 0.7},    # Benny -- dry and level
+}
+CHATTERBOX_DEFAULT = {"ref": None, "exaggeration": 1.0}
+
+
+class ChatterboxNarrator(Narrator):
+    """Loads a Chatterbox model once (in warm_up) and reuses it. `available` means the
+    package and torch import; `device` is cuda when a GPU is present, else cpu (with a
+    warning, since CPU is far too slow for a live race -- export to WAV instead).
+    Distinct voices come from per-role reference clips in CHATTERBOX_REF_DIR."""
+
+    def __init__(self, ref_dir=None, variant=None):
+        self.ref_dir = ref_dir or CHATTERBOX_REF_DIR
+        self.variant = (variant or CHATTERBOX_VARIANT)
+        self._cls = None
+        self._model = None
+        self.device = "cpu"
+        self.available = False
+        try:
+            import torch
+            if self.variant == "original":
+                from chatterbox.tts import ChatterboxTTS as C
+            else:
+                from chatterbox.tts_turbo import ChatterboxTurboTTS as C
+            self._cls = C
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.available = True
+        except Exception:
+            self.available = False
+        self.audible = bool(self.available and self.device == "cuda" and _find_player())
+        if not self.available:
+            self.status = ("chatterbox not installed -- `pip install chatterbox-tts` "
+                           "(Python 3.10 + CUDA torch); running silent")
+        elif self.device == "cpu":
+            self.status = ("chatterbox found but no CUDA GPU -- CPU is too slow for a "
+                           "live race; use render_weekend_audio() to export a WAV")
+        elif not _find_player():
+            self.status = ("chatterbox ready but no audio player found -- live sound "
+                           "off; render_weekend_audio() still exports WAV")
+        else:
+            self.status = ""
+
+    def _ensure_model(self):
+        if self._model is None:
+            self._model = self._cls.from_pretrained(device=self.device)
+        return self._model
+
+    def warm_up(self):
+        """First run downloads the model (~1 GB) and loads it onto the GPU; both take a
+        moment. Do it up front so it doesn't stall on the first spoken line."""
+        if not self.available:
+            return
+        print(f"  [chatterbox ({self.variant}): first run downloads the model (~1 GB) and")
+        print(f"   loads it onto the {self.device.upper()} -- this can take a minute...]")
+        try:
+            self._ensure_model()
+        except Exception as e:
+            print(f"  [chatterbox load failed: {e}]")
+            self.available = self.audible = False
+            return
+        print("  [chatterbox: ready]")
+
+    def _ref(self, role):
+        """The reference-clip path for a role, or None (built-in voice) if there's no
+        configured clip or the file is missing."""
+        name = CHATTERBOX_VOICE.get(role, CHATTERBOX_DEFAULT).get("ref")
+        if not name:
+            return None
+        path = os.path.join(self.ref_dir, name)
+        return path if os.path.exists(path) else None
+
+    def to_wav(self, role, text, path):
+        if not self.available:
+            return False
+        try:
+            model = self._ensure_model()
+        except Exception:
+            return False
+        cfg = CHATTERBOX_VOICE.get(role, CHATTERBOX_DEFAULT)
+        kwargs = {}
+        ref = self._ref(role)
+        if ref:
+            kwargs["audio_prompt_path"] = ref
+        try:
+            # exaggeration is supported by the Original variant; if a build rejects it,
+            # fall back to a plain generate so we still get audio.
+            try:
+                wav = model.generate(text, exaggeration=cfg.get("exaggeration", 1.0), **kwargs)
+            except TypeError:
+                wav = model.generate(text, **kwargs)
+        except Exception:
+            return False
+        pcm = _tensor_to_pcm16(wav)
+        if not pcm:
+            return False
+        with wave.open(path, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(int(getattr(model, "sr", 24000)))
+            w.writeframes(pcm)
+        return True
+
+    def speak(self, role, text):
+        return _speak_via_wav(self, role, text) if self.available else False
+
+
 def make_narrator(kind="espeak"):
-    """Build a narrator by name: 'espeak', 'piper', and 'kokoro' are the real voices;
+    """Build a narrator by name: 'espeak', 'piper', 'kokoro', and 'chatterbox' are the
+    real voices;
     'silent' forces no audio; 'capture' is the record-only export head. The real
     backends all degrade gracefully on their own (speak/to_wav return False when not
     set up), so we hand the real object back even when it isn't ready -- it carries a
@@ -360,6 +505,8 @@ def make_narrator(kind="espeak"):
         return PiperNarrator()
     if kind == "kokoro":
         return KokoroNarrator()
+    if kind == "chatterbox":
+        return ChatterboxNarrator()
     raise ValueError(f"unknown narrator: {kind!r}")
 
 
