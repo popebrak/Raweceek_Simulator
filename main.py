@@ -236,7 +236,7 @@ def _play_show(turns, pace, narrator):
 
 def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
                 laps=None, difficulty=None, show_pace=1.0, end_pause=10.0,
-                narrate="espeak"):
+                narrate="silent"):
     # Pick a circuit (by name, by object, or at random) -- the track decides the
     # race distance and how hard it is to pass.
     if track is None:
@@ -244,12 +244,16 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     elif isinstance(track, str):
         track = track_by_circuit(track) or random.choice(CALENDAR)
 
-    # The voice. `narrate="espeak"` reads the booth aloud if espeak is installed,
-    # and quietly falls back to silence (the original visual-only playback) if not.
-    # Pass narrate="silent" to force the screen-only experience.
+    # The voice. narrate=one of "espeak" / "piper" / "kokoro" reads the booth aloud if
+    # that engine is set up, and otherwise quietly falls back to the original visual-
+    # only playback -- printing a one-line hint about what's missing. Use "silent" to
+    # force screen-only.
     narrator = make_narrator(narrate)
     if narrator.audible:
         print("  [voices on -- the race now runs at talking speed]")
+        narrator.warm_up()              # do any first-run download now, not mid-race
+    elif narrator.status:
+        print("  [" + narrator.status + "]")
 
     print(track_banner(track))
     quali_results = run_qualifying(GRID, track)
@@ -281,14 +285,16 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     _play_show(booth.debrief(summarize_race(history, track), history, track), show_pace, narrator)
 
 
-def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None, gap=0.35):
+def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None,
+                         gap=0.35, engine="piper"):
     """Render a whole weekend's commentary -- the Countdown to Green, the race, and
-    the post-race show -- to a single WAV file, in the two booth voices. Needs
-    espeak; returns the path on success or None if no synth (or no lines) were found.
+    the post-race show -- to a single WAV file. `engine` picks the voice
+    ("espeak"/"piper"/"kokoro"); returns the path on success or None if that engine
+    isn't set up (or no lines were produced).
 
     It replays the exact same line logic as a live race through a record-only narrator
     (no screen, no waiting), gathers the script, and stitches the clips together."""
-    from narration import CaptureNarrator, EspeakNarrator, render_script_to_wav
+    from narration import CaptureNarrator, make_narrator, render_script_to_wav
     if isinstance(track, str):
         track = track_by_circuit(track) or random.choice(CALENDAR)
     elif track is None:
@@ -303,18 +309,43 @@ def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None
     play_race(history, speed=1e9, track=track, booth=booth, narrator=cap)
     cap.script.extend(booth.debrief(summarize_race(history, track), history, track))
 
-    engine = EspeakNarrator()
-    if not engine.available:
-        print("  [no espeak found -- cannot render audio. Install espeak-ng.]")
+    eng = make_narrator(engine)
+    if not eng.available:
+        print(f"  [cannot render audio: {eng.status or engine + ' unavailable'}]")
         return None
-    return path if render_script_to_wav(engine, cap.script, path, gap=gap) else None
+    eng.warm_up()                       # first-run model download up front, with feedback
+    return path if render_script_to_wav(eng, cap.script, path, gap=gap) else None
 
 
 if __name__ == "__main__":
-    # Pass e.g. track="Monaco" to pick a circuit, or leave it for a random one.
-    # narrate="espeak" reads the booth aloud (install espeak-ng first); it falls back
-    # to silent on its own if espeak isn't there. Use narrate="silent" to force the
-    # screen-only run. grid_pause / end_pause hold the pre/post-race screens long
-    # enough to read; with voices on, the race paces itself to the speech.
-    run_weekend(track=None, speed=20.0, grid_pause=10.0, end_pause=10.0,
-                show_telemetry=False, narrate="espeak")
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Run a philosophers' Grand Prix weekend in the terminal, with "
+                    "optional spoken commentary.")
+    parser.add_argument("--voice", choices=["silent", "espeak", "piper", "kokoro"],
+                        default="silent",
+                        help="who reads the commentary aloud (default: silent -- text only)")
+    parser.add_argument("--track", default=None,
+                        help="circuit name, e.g. Monza or Spa (default: a random one)")
+    parser.add_argument("--laps", type=int, default=None,
+                        help="override the race distance (default: the track's own)")
+    parser.add_argument("--speed", type=float, default=20.0,
+                        help="playback speed multiplier; ignored once a voice paces it")
+    parser.add_argument("--render", metavar="FILE", default=None,
+                        help="render the whole weekend to a WAV file instead of playing "
+                             "it live; needs a real --voice (espeak/piper/kokoro)")
+    args = parser.parse_args()
+
+    if args.render:
+        if args.voice == "silent":
+            parser.error("--render needs a real --voice: espeak, piper, or kokoro")
+        out = render_weekend_audio(track=args.track, path=args.render,
+                                   laps=args.laps, engine=args.voice)
+        if out:
+            print(f"  Wrote {out}")
+    else:
+        # grid_pause / end_pause hold the pre/post-race screens long enough to read;
+        # with a voice on, the race paces itself to the speech instead.
+        run_weekend(track=args.track, speed=args.speed, laps=args.laps,
+                    grid_pause=10.0, end_pause=10.0, narrate=args.voice)
