@@ -162,6 +162,18 @@ def render_pit(ps):
             f"comes out{onto}.")
 
 
+# --- COMMENTARY: the undercut (a pass won in the pit lane). --------------------
+def render_undercut(uc):
+    """One speakable line for an undercut. The fresh tyres, not a move on track,
+    did the work -- so the call leans on the strategy, not the corner."""
+    earlier = "a lap earlier" if uc.laps_earlier == 1 else f"{uc.laps_earlier} laps earlier"
+    if uc.position == 1:
+        return (f"  >> THE UNDERCUT IS ON FOR THE LEAD! {uc.undercutter} stopped {earlier} "
+                f"than {uc.victim} -- and has taken the lead in the pit lane!")
+    return (f"  >> THE UNDERCUT WORKS! {uc.undercutter} boxed {earlier} than {uc.victim}, "
+            f"and the fresh rubber vaults them ahead into P{uc.position}.")
+
+
 # --- TELEMETRY: the fiddly bits. Numbers live HERE, not in commentary. -------
 def render_telemetry(inc):
     """The engineering detail for one incident: time lost, damage picked up.
@@ -258,6 +270,11 @@ def render_summary(summary):
     # How much racing there was at the sharp end.
     if s.overtakes_count:
         lines.append(f"  {s.overtakes_count} passes for the podium places out on track.")
+
+    # And how much of it was won in the pits.
+    if s.undercuts_count:
+        moves = "undercut paid off" if s.undercuts_count == 1 else "undercuts paid off"
+        lines.append(f"  {s.undercuts_count} {moves} in the pit lane.")
 
     return "\n".join(lines)
 

@@ -16,7 +16,7 @@ from tracks import CALENDAR, track_by_circuit
 from simulation import run_qualifying, run_race, summarize_race
 from display import (print_timing_sheet, render_standings, render_commentary,
                      render_overtake, render_telemetry, render_result,
-                     render_summary, track_banner, render_pit)
+                     render_summary, track_banner, render_pit, render_undercut)
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
@@ -69,6 +69,10 @@ def play_race(history, speed, track=None, show_telemetry=False):
         # Pit stops are always worth a mention -- they reshuffle the race.
         for ps in report.pit_stops:
             new_lines.append(f"  L{report.lap:>2}  {render_pit(ps).strip()}")
+        # An undercut completes on the victim's stop lap -- call it right after, so
+        # it reads as the consequence of the stop that just happened.
+        for uc in report.undercuts:
+            new_lines.append(f"  L{report.lap:>2}  {render_undercut(uc).strip()}")
 
         if new_lines:
             # Tick the new calls in one at a time, spread across the lap, so the

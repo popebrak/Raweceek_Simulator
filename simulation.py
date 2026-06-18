@@ -245,12 +245,27 @@ class PitStop:
 
 
 @dataclass
+class Undercut:
+    """A pass made in the PIT LANE, not on track. The chaser is stuck behind a
+    rival, pits a lap or two earlier, and the fresh-tyre pace -- worth more than the
+    pit loss -- means that when the rival finally stops, they rejoin BEHIND. The
+    engine already produces these via total_time; this just NAMES the move so the
+    commentary can call it. (See annotate_undercuts.)"""
+    undercutter: str
+    victim: str
+    lap: int             # the lap the move completes -- the victim's own stop
+    laps_earlier: int    # how many laps earlier the undercutter pitted
+    position: int        # the place the undercutter takes (1 = the lead)
+
+
+@dataclass
 class LapReport:
     lap: int
     standings: list = field(default_factory=list)   # list[Standing]
     incidents: list = field(default_factory=list)   # list[Incident]
     overtakes: list = field(default_factory=list)   # list[Overtake]
     pit_stops: list = field(default_factory=list)   # list[PitStop]
+    undercuts: list = field(default_factory=list)   # list[Undercut]
 
 
 def simulate_lap(driver, track):
@@ -650,6 +665,9 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
 
         history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops))
 
+    # Finalise the record: the live loop produced the racing; this reads the whole
+    # history back and NAMES the pit-lane moves (undercuts) it created along the way.
+    annotate_undercuts(history, doomed={c.driver.name for c in cars if c.doomed_lap})
     return history
 
 
@@ -677,6 +695,7 @@ class RaceSummary:
     retirements: list          # [(name, lap, cause, location)] -- words live in display
     double_dnfs: list          # [(chaser, defender, lap, location)] from major collisions
     overtakes_count: int = 0   # clean on-track passes for position across the race
+    undercuts_count: int = 0   # passes completed in the pit lane (the undercut)
 
 
 # A "flying lap" worth calling the fastest is one close to the track's clean lap.
@@ -686,6 +705,70 @@ class RaceSummary:
 # incident laps land well outside this band, so the quickest in-band lap is real.
 FASTLAP_MIN = 0.90      # nothing genuine is quicker than 90% of a clean lap
 FASTLAP_MAX = 1.12      # slower than this is traffic or a stop, not a flyer
+
+
+UNDERCUT_WINDOW = 6     # the rival must stop within this many laps for the move to count
+UNDERCUT_CLOSE = 2.5    # how close behind (seconds) the undercutter was -- a real fight, not a fluke
+UNDERCUT_STICK = 3      # the move must still hold this many laps later (or to the flag)
+
+
+def annotate_undercuts(history, doomed=frozenset()):
+    """Scan a finished race and attach each undercut to the lap it completes.
+
+    An undercut: the undercutter (B) is close BEHIND a rival (A), pits a lap or two
+    EARLIER, and on fresh rubber gains more than the pit stop costs -- so when A
+    finally stops, A rejoins behind B. We require the order to flip exactly ACROSS
+    A's stop (B behind the lap before A pits, ahead the lap A pits), which cleanly
+    separates a pit move from an ordinary on-track pass. And we require it to STICK
+    (B still running and ahead a few laps later), so we don't trumpet a one-lap blip
+    -- or a flourish from a car that's about to retire anyway. Pure detection: the
+    engine already made the move happen; we're only giving it a name.
+
+    `doomed` names the guaranteed-DNF cars (the Objectivists): they aren't racing a
+    strategy, so a pit-lane shuffle involving them is never called an undercut.
+    """
+    pos, tot, ret, pit_laps = {}, {}, {}, {}
+    for rep in history:
+        pos[rep.lap] = {s.name: s.position for s in rep.standings}
+        tot[rep.lap] = {s.name: s.total_time for s in rep.standings}
+        ret[rep.lap] = {s.name: s.retired for s in rep.standings}
+        for ps in rep.pit_stops:
+            pit_laps.setdefault(ps.driver_name, []).append(rep.lap)
+    by_lap = {rep.lap: rep for rep in history}
+    last_lap = history[-1].lap if history else 0
+    names = list(pos[1].keys()) if 1 in pos else []
+
+    def sticks(B, A, pA):
+        check = min(pA + UNDERCUT_STICK, last_lap)
+        return (not ret[check].get(B, True)        # undercutter still running...
+                and pos[check][B] < pos[check][A])  # ...and still ahead
+
+    seen = set()
+    for B in names:
+        for A in names:
+            if A == B or A in doomed or B in doomed:
+                continue
+            for pB in pit_laps.get(B, []):
+                for pA in pit_laps.get(A, []):
+                    if not (pB < pA <= pB + UNDERCUT_WINDOW):
+                        continue
+                    before = pB - 1
+                    if before < 1 or (B, A, pA) in seen:
+                        continue
+                    if not all(L in pos for L in (before, pA - 1, pA)):
+                        continue
+                    if B not in pos[before] or A not in pos[before]:
+                        continue
+                    # Close behind before B's stop, still behind the lap before A's
+                    # stop, ahead the lap A stops: the swap happened in the pits.
+                    if (pos[before][B] > pos[before][A]
+                            and 0 < tot[before][B] - tot[before][A] < UNDERCUT_CLOSE
+                            and pos[pA - 1][B] > pos[pA - 1][A]
+                            and pos[pA][B] < pos[pA][A]
+                            and sticks(B, A, pA)):
+                        by_lap[pA].undercuts.append(
+                            Undercut(B, A, pA, pA - pB, pos[pA][B]))
+                        seen.add((B, A, pA))
 
 
 def summarize_race(history, track):
@@ -749,6 +832,7 @@ def summarize_race(history, track):
     # realistic race total -- so we tally only the passes that actually mattered.
     overtakes_count = sum(1 for rep in history for ov in rep.overtakes
                           if ov.position <= 3 and ov.location != "the start")
+    undercuts_count = sum(len(rep.undercuts) for rep in history)
 
     return RaceSummary(
         circuit=track.circuit,
@@ -761,4 +845,5 @@ def summarize_race(history, track):
         fastest_lap_driver=fl_driver, fastest_lap_time=fl_time,
         retirements=retire_list, double_dnfs=double_dnfs,
         overtakes_count=overtakes_count,
+        undercuts_count=undercuts_count,
     )
