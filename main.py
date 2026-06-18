@@ -14,9 +14,8 @@ from collections import deque
 from drivers import GRID
 from tracks import CALENDAR, track_by_circuit
 from simulation import run_qualifying, run_race, summarize_race
-from display import (print_timing_sheet, render_standings, render_commentary,
-                     render_overtake, render_telemetry, render_result,
-                     render_summary, track_banner, render_pit, render_undercut)
+from display import (print_timing_sheet, render_standings, render_telemetry,
+                     render_result, render_summary, track_banner)
 from colour import Booth, voice, voice_show
 from narration import make_narrator, SilentNarrator
 
@@ -35,11 +34,27 @@ START_JUMP_WORTH = 3         # a launch this big gets called even from outside t
 PIT_COLOUR = 0.30            # chance the colour man adds a dry word to a called pit stop
 
 
-def _call(text):
-    """Strip the render_* '>> ' marker -- the speaker label now carries attribution,
-    so the raw call no longer needs its own."""
-    t = text.strip()
-    return t[2:].strip() if t.startswith(">>") else t
+# How readily a survivable incident interrupts the racing. Anything that CHANGES the
+# race -- a retirement, any contact, a major moment -- is always called (below). These
+# two dials cover the rest: a scruffy-but-survived moment, and a harmless off. Keeping
+# the harmless ones mostly silent is the principle in action -- the racing is the show,
+# and we don't stop it (or wheel out the philosophy) for a lock-up that cost nothing.
+MODERATE_INCIDENT_CALL = 0.5     # a real wobble, time lost: called about half the time
+MINOR_INCIDENT_CALL = 0.12       # a harmless off: mostly stays silent
+
+
+def _incident_worth(inc):
+    """Is this incident worth interrupting the racing for? Race-changing ones always
+    are; a scruffy moment about half the time; a harmless off, rarely."""
+    if inc.retirement or inc.other_retired:
+        return True                              # someone's out -- always the story
+    if inc.cause == "collision":
+        return True                              # contact is always a moment
+    if inc.severity == "major":
+        return True                              # a huge one, even if they survive it
+    if inc.severity == "moderate":
+        return random.random() < MODERATE_INCIDENT_CALL
+    return random.random() < MINOR_INCIDENT_CALL
 
 
 def _overtake_worth(ov, notable_pos):
@@ -119,8 +134,12 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
             if wbit:
                 play(wbit)
 
+        # Incidents: gate the trivial ones out entirely (no call, no quip), so a
+        # harmless lock-up doesn't stop the show. The booth speaks the rest.
         for inc in report.incidents:
-            say("pbp", _call(render_commentary(inc)))
+            if not _incident_worth(inc):
+                continue
+            say("pbp", booth.call_incident(inc))
             if show_telemetry:
                 tele = render_telemetry(inc).strip()
                 if tele:
@@ -130,9 +149,10 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
                 play(bit)
         # Call the passes worth calling -- the lead and podium always, points places
         # selectively, and a real flier off the line. Midfield churn stays silent.
+        # The booth collapses two cars trading a place into one ongoing-battle call.
         for ov in report.overtakes:
             if _overtake_worth(ov, notable_pos):
-                say("pbp", _call(render_overtake(ov)))
+                say("pbp", booth.call_overtake(ov, report.lap))
                 bit = booth.for_overtake(ov)        # the history behind the move
                 if bit:
                     play(bit)
@@ -140,7 +160,7 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         # car ducking in reshuffles nothing the viewer is watching.
         for ps in report.pit_stops:
             if pos_of.get(ps.driver_name, 99) <= PIT_CALL_POSITION:
-                say("pbp", _call(render_pit(ps)))
+                say("pbp", booth.call_pit(ps))
                 if random.random() < PIT_COLOUR:     # now and then, a dry word on the gamble
                     bit = booth.for_pit(ps)
                     if bit:
@@ -148,7 +168,7 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         # An undercut completes on the victim's stop lap -- always worth calling, it
         # IS the strategic story -- so it goes in right after the stop that made it.
         for uc in report.undercuts:
-            say("pbp", _call(render_undercut(uc)))
+            say("pbp", booth.call_undercut(uc))
 
         # The flag: on the final lap the winner's moment always gets called, AFTER
         # whatever else happened, so the race never ends on silence.

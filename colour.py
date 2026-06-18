@@ -27,9 +27,23 @@ import random
 from drivers import GRID
 from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   GENERIC_INCIDENT, GENERIC_OVERTAKE, GENERIC_PIT,
-                  Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK)
+                  Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK,
+                  # the calls -- Vale's factual lines, now owned by the booth
+                  START_CALLS, OVERTAKE_CALLS, BATTLE_CALLS, SOLO_RETIRE,
+                  OVERLIMIT_CALLS, DAMAGE_FAIL_CALLS, COLLISION_CALLS,
+                  CAUSE_PHRASE, SOLO_FLOURISH, CONTACT_WORD, PIT_CALLS, UNDERCUT_CALLS,
+                  # the podium interview
+                  PODIUM_HANDOFF, PODIUM_QUESTIONS, PODIUM_CLOSER_Q,
+                  PODIUM_ANSWER_GENERIC, PODIUM_ANSWERS)
 
 _DRIVER_BY_NAME = {d.name: d for d in GRID}
+
+# Each driver's teammate (same team) -- so the podium reporter can ask about an
+# intra-team scrap by name. Built once from the grid data.
+_TEAMMATE = {}
+for _d in GRID:
+    _mates = [x.name for x in GRID if x.team == _d.team and x.name != _d.name]
+    _TEAMMATE[_d.name] = _mates[0] if _mates else None
 
 
 # Who's in the booth. Roles -> names. Change these two strings and the whole feed
@@ -37,6 +51,7 @@ _DRIVER_BY_NAME = {d.name: d for d in GRID}
 PERSONAS = {
     "pbp":    "Vale",     # the lap caller: excitable, plummy, sets his man up
     "colour": "Benny",    # the sidekick: ex-racer, dry, thinks the philosophy is daft
+    "report": "Suze",     # the pit-lane reporter: heard only on the podium, conducts the interviews
 }
 _TAG_WIDTH = max(len(n) for n in PERSONAS.values()) + 1   # room for the colon
 
@@ -61,10 +76,13 @@ def voice_show(role, text):
     return f"  {tag:<{_TAG_WIDTH}} {text}"
 
 
-# Spoken-friendly number words -- the shows and the run-in say "five laps to go",
-# not "5", so the feed stays clean prose a text-to-speech engine can read aloud.
-_CARDINAL = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
-             6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+# Spoken-friendly number words -- the feed says "five laps to go" and "up eleven
+# places", never a bare digit, so a text-to-speech engine reads clean prose.
+_ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+         "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+         "sixteen", "seventeen", "eighteen", "nineteen"]
+_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
+         "eighty", "ninety"]
 _ORDINAL = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth",
             6: "sixth", 7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth",
             11: "eleventh", 12: "twelfth", 13: "thirteenth", 14: "fourteenth",
@@ -73,16 +91,32 @@ _ORDINAL = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth",
 
 
 def _spell(n):
-    return _CARDINAL.get(n, str(n))
+    """A cardinal number in words, 0-99 -- so a spoken line never shows a digit.
+    (Above ninety-nine it falls back to the numeral; no race figure gets there.)"""
+    if not isinstance(n, int) or n < 0 or n > 99:
+        return str(n)
+    if n < 20:
+        return _ONES[n]
+    tens, ones = divmod(n, 10)
+    return _TENS[tens] + (f"-{_ONES[ones]}" if ones else "")
 
 
 def _ord(n):
     return _ORDINAL.get(n, f"{n}th")
 
 
+def _at(loc):
+    """' at the Parabolica' when we know the corner, '' when we don't."""
+    return f" at {loc}" if loc else ""
+
+
 # How often an ORDINARY pass (no authored rivalry) earns a line about the passer.
 # A genuine rivalry always gets called; this keeps us from reacting to every lunge.
 PLAIN_OVERTAKE_COLOUR = 0.35
+
+# Two cars trading the same place within this many laps reads as ONE ongoing scrap,
+# not a string of identical "X passes Y" calls. The booth collapses the flicker.
+BATTLE_WINDOW = 3
 
 # How many turns of the running DISCUSSION the booth delivers per quiet lap. Two
 # keeps a question-and-answer beat together rather than stranding a tee-up a lap from
@@ -245,6 +279,7 @@ class Booth:
         self._thread = []                           # remaining turns of the active discussion
         self._used_threads = set()                  # threads already run this race
         self._last_about = frozenset()              # subjects of the last thread (avoid back-to-back)
+        self._battles = {}                          # frozenset(pair) -> {lap, swaps}: collapse trading places
 
     def _pick(self, bits, tags):
         """Keep Bits whose trigger is in `tags` and that we haven't used, then choose
@@ -261,6 +296,89 @@ class Booth:
         """Pair lore that reads either way (a rivalry) -- try both orderings."""
         return (self._pick(PAIR_LORE.get((a, b), []), tags)
                 or self._pick(PAIR_LORE.get((b, a), []), tags))
+
+    # --- the calls: Vale's FACTUAL lines, with variety and spoken numbers -----
+    # The booth now owns these too (they used to live in display.render_*). Every
+    # call is drawn from a deep pool, never repeated back-to-back (_fresh), and
+    # every number is spelled, so the lap caller reads as clean as the colour man.
+    def call_overtake(self, ov, lap):
+        """Vale's call for a completed pass. A re-pass between two cars already
+        scrapping is collapsed into one ongoing-battle line, so trading places
+        reads as a fight, not a stutter of identical calls."""
+        if ov.location == "the start":
+            return self._call_start(ov)
+        at = _at(ov.location)
+        pos_ord = _ord(ov.position)
+        pair = frozenset((ov.passer, ov.passed))
+        prev = self._battles.get(pair)
+        if prev and lap - prev["lap"] <= BATTLE_WINDOW:        # they're at it again
+            prev["swaps"] += 1
+            prev["lap"] = lap
+            bucket = "again" if prev["swaps"] == 1 else "ongoing"
+            return self._fresh(f"_battle_{bucket}", BATTLE_CALLS[bucket]).format(
+                driver=ov.passer, other=ov.passed, pos=pos_ord, at=at)
+        self._battles[pair] = {"lap": lap, "swaps": 0}         # a fresh pass: remember it
+        bucket = "lead" if ov.position == 1 else "podium" if ov.position <= 3 else "points"
+        return self._fresh(f"_ot_{bucket}", OVERTAKE_CALLS[bucket]).format(
+            driver=ov.passer, other=ov.passed, pos=pos_ord, at=at)
+
+    def _call_start(self, ov):
+        """The getaway off the line, scaled by how big the launch was."""
+        if ov.position == 1:
+            bucket = "lead"
+        elif ov.places_gained >= 4:
+            bucket = "flier"
+        elif ov.places_gained >= 2:
+            bucket = "good"
+        else:
+            bucket = "edge"
+        return self._fresh(f"_start_{bucket}", START_CALLS[bucket]).format(
+            driver=ov.passer, pos=_ord(ov.position), gained=_spell(ov.places_gained))
+
+    def call_incident(self, inc):
+        """Vale's call for a mistake, a collision, or a retirement."""
+        at = _at(inc.location)
+        d = inc.driver_name
+        if inc.cause == "over the limit":
+            return self._fresh("_inc_depth", OVERLIMIT_CALLS).format(driver=d, at=at)
+        if inc.cause == "damage failure":
+            return self._fresh("_inc_dmg", DAMAGE_FAIL_CALLS).format(driver=d)
+        if inc.cause == "collision":
+            if inc.retirement and inc.other_retired:
+                bucket = "both_out"
+            elif inc.other_retired:
+                bucket = "other_out"
+            elif inc.retirement:
+                bucket = "self_out"
+            else:
+                bucket = "both_go"
+            return self._fresh(f"_col_{bucket}", COLLISION_CALLS[bucket]).format(
+                driver=d, other=inc.other_name, at=at,
+                severity=inc.severity, word=CONTACT_WORD[inc.severity])
+        # solo error: a cause phrasing, then either a retirement tag or a flourish
+        phrase = self._fresh(f"_cause_{inc.cause}", CAUSE_PHRASE.get(inc.cause, [inc.cause]))
+        if inc.retirement:
+            return self._fresh("_solo_retire", SOLO_RETIRE).format(
+                driver=d, phrase=phrase, at=at, severity=inc.severity)
+        flourish = self._fresh(f"_flour_{inc.severity}", SOLO_FLOURISH[inc.severity])
+        return f"{d} {phrase}{at} -- {flourish}"
+
+    def call_pit(self, ps):
+        """Vale's call for a pit stop -- spoken, with the stint length in words."""
+        onto = f" onto {ps.compound}s" if ps.compound else ""
+        stint = _spell(ps.old_stint)
+        if ps.stop_number >= 2:
+            return self._fresh("_pit_again", PIT_CALLS["again"]).format(
+                driver=ps.driver_name, onto=onto, stint=stint, ord=_ord(ps.stop_number))
+        return self._fresh("_pit_first", PIT_CALLS["first"]).format(
+            driver=ps.driver_name, onto=onto, stint=stint)
+
+    def call_undercut(self, uc):
+        """Vale's call for an undercut completing -- a pass won in the pit lane."""
+        earlier = "a lap" if uc.laps_earlier == 1 else f"{_spell(uc.laps_earlier)} laps"
+        bucket = "lead" if uc.position == 1 else "points"
+        return self._fresh(f"_uc_{bucket}", UNDERCUT_CALLS[bucket]).format(
+            driver=uc.undercutter, other=uc.victim, earlier=earlier, pos=_ord(uc.position))
 
     # --- event-triggered colour ---------------------------------------------
     def for_overtake(self, ov):
@@ -559,19 +677,16 @@ class Booth:
             turns.append(("colour", f"{s.retirements[0][0]}'s afternoon ended early, too. The race "
                                     f"doesn't forgive much out there."))
 
-        # Quick quotes from the podium -- the drivers speak for themselves.
+        # The podium interview -- a real give-and-take, conducted by the pit-lane
+        # reporter, with questions drawn from THIS driver's race. Racing first; the
+        # philosophy quote is the closer. (See _interview.)
         podium = s.podium[:3]
         if podium:
-            turns.append(("pbp", "Let's hear from the podium."))
-            for pos, name, _team in podium:
-                quote = self._podium_quote(name)
-                if not quote:
-                    continue
-                if pos == 1:
-                    turns.append(("pbp", f"{name} -- a worthy winner. Your race?"))
-                else:
-                    turns.append(("pbp", f"{name}, {_ord(pos)} today -- your afternoon?"))
-                turns.append((name, quote))            # role = the driver's own name
+            turns.append(random.choice(PODIUM_HANDOFF))
+            final = history[-1].standings
+            for pos, name, team in podium:
+                turns.extend(self._interview(name, pos, team, final, history, s))
+            turns.append(("report", "Plenty to chew on -- back to you in the booth."))
 
         # Sign-off.
         turns.append(("pbp", f"From {s.circuit}, that's all from us. Goodnight!"))
@@ -633,3 +748,82 @@ class Booth:
     def _podium_quote(self, name):
         pool = PODIUM_QUOTES.get(name) or PODIUM_QUOTE_FALLBACK
         return random.choice(pool) if pool else None
+
+    # --- the podium interview -----------------------------------------------
+    def _interview(self, name, pos, team, final, history, summary):
+        """One driver's interview: a few RACING questions earned by what actually
+        happened to them, each answered in their own voice, then the philosophy
+        quote as the closer. The winner gets two angles; the others get one."""
+        turns = []
+        angles = self._interview_angles(name, pos, final, history, summary)
+        n_blocks = 2 if pos == 1 else 1
+        for angle in angles[:n_blocks]:
+            turns.extend(self._interview_beats(angle, name, final))
+        quote = self._podium_quote(name)              # the closer: their philosophy line
+        if quote:
+            key = "winner" if pos == 1 else "other"
+            turns.append(("report", self._fresh(f"_closer_{key}", PODIUM_CLOSER_Q[key])))
+            turns.append((name, quote))
+        return turns
+
+    def _interview_angles(self, name, pos, final, history, summary):
+        """Which questions THIS driver has earned, most race-defining first. Always
+        ends with a generic opener so there's never nothing to ask."""
+        st = next((x for x in final if x.name == name), None)
+        gained = (st.grid_position - st.position) if st else 0
+        angles = []
+        if pos == 1 and st and st.grid_position == 1 and summary.lead_changes == 0:
+            angles.append("pole_to_win")              # led every lap from pole
+        if gained >= 4:
+            angles.append("charge")                   # came through the field
+        mate = _TEAMMATE.get(name)
+        if mate:
+            mate_st = next((x for x in final if x.name == mate), None)
+            if mate_st and not mate_st.retired and abs(mate_st.position - pos) <= 3:
+                angles.append("teammate")             # a genuine intra-team scrap
+        if any(getattr(r, "weather_change", None) for r in history):
+            angles.append("weather")                  # they raced a tyre gamble
+        if st and (st.damage > 0.02 or self._survived_contact(name, history)):
+            angles.append("survival")                 # carried damage / survived contact
+        angles.append("win_open")                     # the always-available fallback
+        return angles
+
+    def _interview_beats(self, angle, name, final):
+        """The (reporter question, driver answer) turns for one angle. The teammate
+        angle naturally runs two beats -- the scrap, then the team-orders follow-up."""
+        if angle == "teammate":
+            mate = _TEAMMATE.get(name) or "your teammate"
+            q1 = self._fresh("_q_teammate", PODIUM_QUESTIONS["teammate"]).format(mate=mate)
+            q2 = self._fresh("_q_team_orders", PODIUM_QUESTIONS["team_orders"])
+            return [("report", q1), (name, self._answer(name, "teammate")),
+                    ("report", q2), (name, self._answer(name, "team_orders"))]
+        st = next((x for x in final if x.name == name), None)
+        gained = max((st.grid_position - st.position) if st else 0, 0)
+        start_ord = _ord(st.grid_position if st else 1)
+        q = self._fresh(f"_q_{angle}", PODIUM_QUESTIONS[angle]).format(
+            gained=_spell(gained), start_ord=start_ord)
+        return [("report", q), (name, self._answer(name, angle))]
+
+    def _answer(self, name, angle):
+        """The driver's reply: their authored line for this angle if they have one,
+        else the generic floor. Overrides get per-driver no-repeat memory; the floor
+        is keyed by angle ALONE, so two finishers never echo the same floor line in
+        the one ceremony."""
+        override = PODIUM_ANSWERS.get(name, {}).get(angle)
+        if override:
+            return self._fresh(f"_ans_ovr_{name}_{angle}", override)
+        pool = PODIUM_ANSWER_GENERIC.get(angle) or PODIUM_ANSWER_GENERIC["win_open"]
+        return self._fresh(f"_ans_gen_{angle}", pool)
+
+    def _survived_contact(self, name, history):
+        """Was this driver in a collision they walked away from? (Sets up the
+        'you took a knock and still finished' question.)"""
+        for r in history:
+            for inc in r.incidents:
+                if inc.cause != "collision":
+                    continue
+                if inc.driver_name == name and not inc.retirement:
+                    return True
+                if inc.other_name == name and not inc.other_retired:
+                    return True
+        return False

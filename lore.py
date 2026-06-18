@@ -3,29 +3,44 @@
 Like drivers.py and tracks.py, this file is pure data: no logic. The selection
 engine (colour.py) reads these tables; it doesn't live here.
 
-There are now TWO kinds of material, because a broadcast has two registers:
+THE GUIDING PRINCIPLE -- THE RACING IS THE SHOW; THE PHILOSOPHY IS THE COLOUR.
+When a line has to choose between calling the race and explaining an idea, it calls
+the race. The ideas earn their place by illuminating what a driver is DOING out
+there -- never by pausing the broadcast to deliver a seminar. Every authored line
+here should pass one test: does it make the racing more vivid? If it only teaches
+philosophy, it is in the wrong sport. The colour man wears the philosophy lightly --
+he reaches for it to entertain, and he anchors it to the cars.
 
-  * EVENT REACTIONS -- short, punchy lines tied to a thing that just happened (a
-    pass, a crash, a getaway). These are `Bit`s: a `quip()` is one dry one-liner,
-    a `banter()` is a quick exchange. They fire the instant the event does.
+There are now THREE kinds of material, because a broadcast has more than one register:
+
+  * THE CALLS -- the lap caller's factual lines: a pass, a crash, a getaway, a stop,
+    an undercut. The booth owns these now (colour.py reads the pools below), just as
+    it owns the colour man's reactions, so every word in the feed -- factual or wry --
+    comes from one place and gets the same variety and no-repeat care.
+        OVERTAKE_CALLS, START_CALLS, BATTLE_CALLS, SOLO_*, COLLISION_CALLS,
+        PIT_CALLS, UNDERCUT_CALLS, plus CAUSE_PHRASE / SOLO_FLOURISH / CONTACT_WORD
+
+  * EVENT REACTIONS -- short, punchy colour tied to a thing that just happened. These
+    are `Bit`s: a `quip()` is one dry one-liner, a `banter()` is a quick exchange.
+    They fire the instant the event does, as the REACTION to the call.
         DRIVER_LORE, PAIR_LORE, GENERIC_INCIDENT, GENERIC_OVERTAKE
 
   * DISCUSSIONS -- the quiet-lap conversation. A `Thread` is a DEVELOPED exchange,
-    several turns long, that actually explores an idea (what the will to power IS,
-    why Marx hated Bakunin, what Eau Rouge does to a brave driver). The booth runs
-    one thread at a time, a beat at a time, across the green-flag laps -- a real
-    conversation that unfolds and gets interrupted by the racing, not a one-liner
-    fired and forgotten. This is where DEPTH and VARIETY live, and the pool is large
-    on purpose so a long race never circles back on itself.
+    several turns long, that explores an idea THROUGH the racing (what the will to
+    power looks like at the apex, why Marx and Bakunin can't share a corner, what Eau
+    Rouge asks of a brave driver). The booth runs one a beat at a time across the
+    green-flag laps, pausing when the racing interrupts -- and it prefers threads tied
+    to a live battle over abstract ones, so the talk stays subordinate to the cars.
         DISCUSSIONS
 
-Plus the bits the shows use: TRACK_LORE (the preview's quick scene-set) and
-PODIUM_QUOTES (the drivers' own words, post-race).
+Plus the bits the shows use: TRACK_LORE (the preview's quick scene-set), the podium
+INTERVIEW (PODIUM_QUESTIONS / PODIUM_ANSWERS / PODIUM_QUOTES -- a real give-and-take,
+racing first and the philosophy as the closing line).
 
-Roles in every turn are "pbp" (the lap caller) and "colour" (his sidekick) -- never
-hardcoded names, so colour.py can recast the booth in one line. Lines are PROSE, no
-numbers, no jargon: they are written to be read ALOUD. And the colour man wears the
-philosophy lightly -- he explains it to entertain, not to lecture.
+Roles in every turn are "pbp" (the lap caller) and "colour" (his sidekick), plus
+"report" (the pit-lane reporter, podium only) -- never hardcoded names, so colour.py
+can recast the booth in one line. Lines are PROSE, no numbers, no jargon: they are
+written to be read ALOUD (colour.py spells any number that survives into a line).
 """
 
 from dataclasses import dataclass, field
@@ -156,6 +171,165 @@ GENERIC_PIT = [
     quip("The pit wall speaks and they obey -- well, most of them. You know the two who won't.", when="pit"),
     quip("Lovely stop. The race is half-run in that lane, and nobody in the grandstand ever claps it.", when="pit"),
 ]
+
+
+# =============================================================================
+# THE CALLS -- the lap caller's FACTUAL lines, as data. Spoken prose; any number
+# is spelled by colour.py before it airs. Placeholders: {driver}, {other},
+# {at} (=" at <corner>" or ""), {pos} (a spelled ordinal -- "second"),
+# {gained} (a spelled cardinal -- "four"), {stint} (spelled), {earlier}.
+# Pools are deep and the booth never repeats one back-to-back, so the busiest
+# afternoon of passing and stopping never reads from a script.
+# =============================================================================
+
+# Getaways off the line, by how big the launch was.
+START_CALLS = {
+    "lead": ["{driver} BEATS them all off the line -- leads into Turn 1!",
+             "Lights out -- and it's {driver} who gets the jump to lead them away!",
+             "A mighty launch from {driver} -- into Turn 1 with the lead!",
+             "{driver} nails the start and sweeps into the lead at the first corner!"],
+    "flier": ["{driver} -- what a launch! Storms up to {pos}!",
+              "{driver} is away like a scalded cat -- up to {pos} already!",
+              "Sensational getaway from {driver} -- {gained} places gained, up to {pos}!",
+              "Where did {driver} come from?! A rocket off the line, up to {pos}!"],
+    "good": ["{driver} gets a flier off the line, up to {pos}.",
+             "Good launch from {driver} -- slots into {pos} through Turn 1.",
+             "{driver} makes a couple off the start, up into {pos}.",
+             "Tidy getaway, {driver} -- gains a place or two, up to {pos}."],
+    "edge": ["{driver} edges ahead off the line, into {pos}.",
+             "{driver} just noses into {pos} on the run down to Turn 1.",
+             "A yard gained for {driver} -- into {pos}."],
+}
+
+# On-track passes for position, by what's at stake. The drama scales with the place.
+OVERTAKE_CALLS = {
+    "lead": ["{driver} sweeps past {other}{at} -- and takes the LEAD!",
+             "{driver} is THROUGH on {other}{at} -- a new leader of this Grand Prix!",
+             "There it is! {driver} dispatches {other}{at} to lead!",
+             "{driver} makes it stick{at} -- past {other}, and into the lead!",
+             "The move for the lead! {driver} clears {other}{at} and hits the front!"],
+    "podium": ["{driver} forces it past {other}{at} for {pos}!",
+               "{driver} dives past {other}{at} -- up to {pos}!",
+               "Lovely move by {driver}{at}, clears {other} for {pos}!",
+               "{driver} won't be denied{at} -- through on {other} for {pos}!",
+               "{driver} has {other} for {pos}{at} -- and it's done cleanly!"],
+    "points": ["{driver} gets the move done on {other}{at}, up to {pos}.",
+               "{driver} picks off {other}{at} -- into {pos}.",
+               "{driver} makes it past {other}{at} for {pos}.",
+               "A place gained for {driver}{at}, ahead of {other} into {pos}.",
+               "{driver} slots past {other}{at} and up to {pos}.",
+               "{driver} finds a way by {other}{at} -- {pos} now."],
+}
+
+# A re-pass between two cars already scrapping -- collapse the flicker into one
+# story. {driver} is whoever just went ahead; {pos} the place they're fighting over.
+BATTLE_CALLS = {
+    "again": ["...and {driver} fires straight back past {other}! They are TRADING this {pos} place!",
+              "{driver} repays the compliment immediately -- back ahead of {other}! What a scrap!",
+              "Side by side again -- and it's {driver} back in front of {other}! This is wonderful!",
+              "Straight back through goes {driver}! These two are wheel to wheel for {pos}!"],
+    "ongoing": ["...and AGAIN! {driver} ahead of {other} -- they have swapped this place more times than I can count!",
+                "Still at it! {driver} edges back ahead -- {other} will have something to say next lap!",
+                "{driver} leads this dance once more -- {other} right with them, glued to the gearbox!",
+                "They are putting on a SHOW -- {driver} ahead of {other} again, and neither will yield!"],
+}
+
+# Solo errors -- a cause phrasing (CAUSE_PHRASE) plus, when the car survives, a
+# severity flourish (SOLO_FLOURISH); when it ends the race, a retirement tag.
+SOLO_RETIRE = ["{driver} {phrase}{at} -- a {severity} one, and THAT is the end of their race!",
+               "{driver} {phrase}{at} -- and they're beached! Out of the Grand Prix!",
+               "Disaster for {driver}, who {phrase}{at} -- their afternoon is OVER!",
+               "{driver} {phrase}{at} -- no way back from that one. Retired."]
+
+# The hopeless ones -- a car simply over its head (the Objectivism pair, every race).
+OVERLIMIT_CALLS = ["{driver} is hopelessly out of their depth -- throws it away{at}, and OUT!",
+                   "{driver} was never on terms with it -- bins it{at}, and that's their race run!",
+                   "It was coming all along -- {driver} loses it{at} and is OUT of the Grand Prix!"]
+
+# A delayed mechanical letting go from earlier damage.
+DAMAGE_FAIL_CALLS = ["{driver}'s earlier damage finally lets go -- OUT OF THE RACE!",
+                     "And there it is -- {driver}'s wounded car gives up the ghost. Retired.",
+                     "The damage {driver} was carrying has done for them at last -- they're out."]
+
+# Each cause carries SEVERAL phrasings -- the booth picks one and won't repeat it
+# back-to-back. {at the corner} is appended by colour.py. (Moved here from display.py
+# so the booth owns the words; display.py keeps only the timing-screen furniture.)
+CAUSE_PHRASE = {
+    "off-track": ["runs wide", "runs out of road", "sails off the circuit",
+                  "drops it onto the run-off", "overcooks it and runs wide"],
+    "lock-up":   ["locks up and runs deep", "flat-spots the fronts and skates wide",
+                  "locks the inside front", "gets it all wrong under braking",
+                  "lights up the fronts and sails on"],
+    "spin":      ["spins it", "snaps round", "gets it all out of shape and spins",
+                  "loses the rear and spins", "half-spins and scrabbles for grip"],
+    "grass":     ["puts a wheel on the grass", "runs onto the green stuff and slithers",
+                  "gets onto the marbles", "drops two wheels onto the grass",
+                  "runs in too hot and onto the grass"],
+    "kerb":      ["is launched over a sausage kerb", "clatters over the kerb",
+                  "rides the kerb too hard and bounces wide", "gets the kerb all wrong",
+                  "is fired skyward by the kerb"],
+    "wall":      ["clips the wall", "brushes the barrier", "kisses the wall on the exit",
+                  "glances off the barrier", "taps the wall"],
+    "gravel":    ["digs into the gravel", "ploughs into the gravel trap",
+                  "drops it into the gravel", "fishtails into the gravel",
+                  "beaches a wheel in the gravel"],
+}
+# Severity, said the way a commentator would say it (no numbers) -- a pool each.
+SOLO_FLOURISH = {
+    "minor":    ["but gathers it up and carries on", "but catches it and continues",
+                 "no harm done, they're still going", "but holds onto it, lucky"],
+    "moderate": ["a scruffy moment, and that will have cost some time",
+                 "untidy -- they'll have lost a chunk there",
+                 "a real wobble, and time lost", "messy, and that hurts the lap"],
+    "major":    ["a big one -- that could haunt the rest of their race",
+                 "a huge moment -- lucky to still be running",
+                 "an enormous error -- that will hurt", "a massive moment, and time torn up"],
+}
+CONTACT_WORD = {"minor": "light", "moderate": "firm", "major": "heavy"}
+
+# Contact between two cars, by outcome. {driver} is the car that dived in; {other}
+# the car defending; {word} the severity in plain English; {at} the corner.
+COLLISION_CALLS = {
+    "both_out": ["CONTACT{at}! {driver} and {other} collide -- a {severity} one, and they are BOTH OUT!",
+                 "Oh, they've come together{at}! {driver} into {other} -- and that's the pair of them DONE!",
+                 "Heavy contact{at}! {driver} and {other} take each other out of the Grand Prix!"],
+    "other_out": ["{driver} dives down the inside of {other}{at} -- {other} is tipped into a spin and OUT, {driver} limps on!",
+                  "{driver} lunges on {other}{at} -- and it's {other} who pays! Spun, and out of the race!",
+                  "Contact{at}! {driver} survives it, but {other} is pitched out of the Grand Prix!"],
+    "self_out": ["{driver} throws it up the inside of {other}{at} and comes off worst -- {driver} is OUT!",
+                 "{driver} tries it on {other}{at}, gets it all wrong, and it's {driver} who's eliminated!",
+                 "Ambitious from {driver}{at} -- too ambitious! {driver} bounces off {other} and OUT!"],
+    "both_go": ["{driver} dives down the inside of {other}{at} -- side by side, {word} contact, and they BOTH keep going!",
+                "Wheel to wheel{at}! {driver} and {other} touch -- {word} contact -- but away they both go!",
+                "{driver} has a look at {other}{at} -- they bang wheels, {word} contact, no harm, racing on!"],
+}
+
+# Pit stops. {driver}, {stint} (spelled laps on the old set), {onto} (=" onto softs"
+# or ""), {ord} (spelled stop number for repeat stops: "second").
+PIT_CALLS = {
+    "first": ["{driver} peels into the pit lane{onto}.",
+              "And {driver} blinks first -- in they come{onto}.",
+              "{driver} comes in to serve the stop{onto}.",
+              "Box, box for {driver} -- in for service{onto}.",
+              "{driver} dives into the lane after a {stint}-lap opening stint{onto}."],
+    "again": ["{driver} is back in again{onto}.",
+              "Another stop for {driver}{onto}.",
+              "{driver} returns to the lane for the {ord} time{onto}.",
+              "In comes {driver} once more{onto}.",
+              "{driver} pits again after a {stint}-lap stint{onto}."],
+}
+
+# The undercut -- a pass won in the pit lane. {driver} undercutter, {other} victim,
+# {earlier} ("a lap" / "three laps"), {pos} the place taken.
+UNDERCUT_CALLS = {
+    "lead": ["THE UNDERCUT IS ON FOR THE LEAD! {driver} stopped {earlier} earlier than {other} -- and has taken the lead in the pit lane!",
+             "It's worked for the LEAD! {driver} boxed {earlier} before {other}, and the fresh rubber has done the rest -- {driver} leads!",
+             "{driver} has stolen the lead in the pits! {earlier} earlier than {other}, and it's paid off completely!"],
+    "points": ["THE UNDERCUT WORKS! {driver} boxed {earlier} earlier than {other}, and the fresh rubber vaults them up to {pos}.",
+               "Strategy gold for {driver} -- in {earlier} before {other}, and they emerge ahead, up to {pos}.",
+               "{driver} has done {other} in the pit lane -- {earlier} earlier on fresh tyres, and it's {pos} now.",
+               "The undercut bites! {driver} stopped {earlier} sooner than {other} and jumps to {pos}."],
+}
 
 
 # Directional overtake reactions for the marquee pairings -- the lap caller has
@@ -367,24 +541,24 @@ DISCUSSIONS = [
     ], about=("Mikhail Bakunin",), topic="destruction"),
 
     discussion([
-        ("pbp", "Wollstonecraft, rigorous as ever."),
-        ("colour", "Sevent-ninety-two, she writes A Vindication of the Rights of Woman -- argues women aren't naturally daft, they're just denied an education and then mocked for the result."),
-        ("pbp", "Radical for its day."),
-        ("colour", "Radical for THIS day, some places. She built the whole modern argument out of one idea: give people reason and a fair chance, and watch what they do. She's doing it down the order right now."),
+        ("pbp", "Wollstonecraft, picking the field off one by one."),
+        ("colour", "And there's her whole argument, made visible. Give a driver reason and a fair shot, she said, and watch what they do -- it's the ones who assumed she couldn't who look daft from back here."),
+        ("pbp", "Rights of Woman."),
+        ("colour", "Two hundred years early, and they mocked it. Hard to mock from her mirrors, mind. The case rather makes itself at this speed."),
     ], about=("Mary Wollstonecraft",), topic="rights of woman"),
 
     discussion([
-        ("pbp", "Césaire -- the poet on the grid."),
-        ("colour", "Négritude. He gave a colonised generation a word to be proud of instead of ashamed of. Wrote a Discourse on Colonialism that still draws blood."),
-        ("pbp", "A teacher, too."),
-        ("colour", "Taught the young Fanon, for one. Armed a generation with language before anyone armed them with anything else. You can hear him in half this grid."),
+        ("pbp", "Césaire -- the poet on the grid, and it shows in how he drives."),
+        ("colour", "It does. Measured, composed, every input placed like a word in a line. The flashier lads are throwing the car at the corner; Césaire's writing his lap out longhand, and it's quicker than it looks."),
+        ("pbp", "Nothing wasted."),
+        ("colour", "Not a movement. Négritude was his -- take the identity they tried to shame out of you and wear it with pride -- and he races like a man with nothing left to apologise for. Composed all the way down."),
     ], about=("Aimé Césaire",), topic="negritude"),
 
     discussion([
-        ("pbp", "Fanon, decisive in everything he does."),
-        ("colour", "He was a psychiatrist, this one -- diagnosed a whole colonial world as a sickness and prescribed its overthrow. The Wretched of the Earth."),
-        ("pbp", "Heavy stuff."),
-        ("colour", "Heaviest. And he didn't theorise from an armchair -- he was in it, Algeria, the lot. Doesn't wait for permission out here because he never did off the track either."),
+        ("pbp", "Fanon, decisive -- never seems to hesitate."),
+        ("colour", "Never. Watch him into a corner: committed before the others have finished thinking. He argued the wretched of the earth don't WAIT to be granted freedom -- they take it."),
+        ("pbp", "And out here?"),
+        ("colour", "Same man. He doesn't ask the car ahead for permission, because he never asked anyone for anything. See a gap, take a gap. A whole philosophy of liberation, run flat out."),
     ], about=("Frantz Fanon",), topic="liberation"),
 
     # --- rivalries: the history between two ---------------------------------
@@ -600,11 +774,11 @@ DISCUSSIONS = [
     ], about=("Plato",), topic="the chariot"),
 
     discussion([
-        ("pbp", "de Beauvoir and 'the Other' -- unpack that."),
-        ("colour", "How we quietly cast a whole group as the deviation from a default. Man's the standard; woman's 'the Other.' She showed how much damage that little move does."),
-        ("pbp", "On the grid?"),
-        ("colour", "She'd note who gets called a 'great driver' and who gets called a 'great woman driver,' and ask why one needs the adjective. Sharp as anyone out here, twice as precise about it."),
-    ], about=("Simone de Beauvoir",), topic="the other"),
+        ("pbp", "de Beauvoir, so precise through here."),
+        ("colour", "Surgical. And it's no accident -- her whole method was to refuse the comfortable story and look hard at what's actually in front of you. No flinching, no flattering yourself."),
+        ("pbp", "You can see it in the car."),
+        ("colour", "Every lap. She doesn't drive the corner she WISHES was there -- she drives the one that is. Brakes where the grip really ends, not where pride says it should. That clear eye on reality is worth half a second."),
+    ], about=("Simone de Beauvoir",), topic="clear sight"),
 
     discussion([
         ("pbp", "Machiavelli on fortune -- 'fortuna,' he called it."),
@@ -814,7 +988,7 @@ DISCUSSIONS = [
     discussion([
         ("pbp", "Spare a thought for the midfield, Benny."),
         ("colour", "Always do. Half of philosophy IS the midfield -- the ones history half-remembers, grinding away, occasionally brilliant, mostly overlooked. Rorty had a lovely humility about that."),
-        ("pbp", "No shame in P10?"),
+        ("pbp", "No shame in finishing tenth?"),
         ("colour", "None. A useful idea that finishes tenth beats a perfect one in the gravel. Most of these geniuses died ignored and got famous later. Bit late for the points, mind you."),
     ], topic="the midfield"),
 
@@ -922,3 +1096,202 @@ PODIUM_QUOTE_FALLBACK = [
     "A good day's work. The arguments can wait until tomorrow.",
     "I will let the result speak. It is more eloquent than I am.",
 ]
+
+
+# =============================================================================
+# THE PODIUM INTERVIEW -- a real give-and-take, not a recited quote. A pit-lane
+# reporter (role "report") asks questions DRAWN FROM THE RACE THAT JUST HAPPENED
+# -- the charge through the field, the scrap with a teammate, the call on the
+# tyres -- and the driver answers. Racing first; the philosophy is the CLOSER,
+# the existing PODIUM_QUOTES line that buttons the interview. (The colour.py
+# fact-finder decides which angles actually apply to each finisher.)
+#
+# Question banks are keyed by ANGLE. Placeholders the booth fills: {mate} (the
+# teammate's name), {gained} (spelled cardinal), {start_ord} (spelled ordinal).
+# =============================================================================
+
+# The booth throws down to the podium.
+PODIUM_HANDOFF = [
+    ("pbp", "Let's get down to the podium -- Suze is standing by."),
+    ("pbp", "Our Suze is down with the drivers. Suze?"),
+    ("pbp", "Over to pit lane, where Suze has the podium finishers."),
+]
+
+PODIUM_QUESTIONS = {
+    "charge": [
+        "{gained} places up from where you started -- talk us through that charge.",
+        "You came right through the field today -- where did you make the difference?",
+        "From {start_ord} on the grid to the podium -- how did that one come together?",
+    ],
+    "teammate": [
+        "You and {mate} had quite the battle out there -- how close did that get?",
+        "It looked like you and {mate} were really racing each other hard today?",
+        "That scrap with {mate} -- was it as tense in the car as it looked from here?",
+    ],
+    "team_orders": [
+        "Were team orders ever a consideration, or were you both free to race?",
+        "Did the pit wall ever ask you to hold position, or was it gloves off?",
+        "Was there ever a call to settle it between you, or were you let race?",
+    ],
+    "weather": [
+        "When the rain came, what was the call on the tyres?",
+        "The conditions were all over the place -- how did you read them?",
+        "That gamble when the weather turned -- talk us through the thinking.",
+    ],
+    "survival": [
+        "You took a knock out there and still brought it home -- how was the car after?",
+        "There was contact early on -- how close did you come to not finishing?",
+        "You carried damage to the flag -- how much was that hurting you out there?",
+    ],
+    "pole_to_win": [
+        "Pole to flag, never headed -- was it as controlled as it looked from here?",
+        "You led every lap -- was it ever as comfortable as the gap suggested?",
+        "Lights to flag out front -- where was this race actually won?",
+    ],
+    "win_open": [
+        "Take us through it -- when did you know the win was on?",
+        "A brilliant drive -- where do you reckon you won this one?",
+        "When did you start to believe today was your day?",
+    ],
+}
+
+# The closing question -- the cue for the driver's philosophy line (PODIUM_QUOTES).
+PODIUM_CLOSER_Q = {
+    "winner": [
+        "And the bigger picture -- what does a win like this mean to you?",
+        "Finally, sum it up for us. What does this one mean?",
+        "Last word's yours -- what does a day like this say?",
+    ],
+    "other": [
+        "And the bigger picture -- happy to be up there?",
+        "Last word -- what do you take away from today?",
+        "Sum it up for us -- satisfied with that result?",
+    ],
+}
+
+# The GENERIC answer floor -- in a neutral racing register, fits any driver's
+# mouth. The booth uses these unless the driver has a characterful override below.
+PODIUM_ANSWER_GENERIC = {
+    "charge": [
+        "We were quick where it mattered and patient where we had to be. The places came.",
+        "I kept my head, picked them off one at a time, and trusted the car would still be there at the end. It was.",
+        "Once you're past the first two it becomes a rhythm. You stop counting and just keep moving forward.",
+    ],
+    "teammate": [
+        "Hard but fair. We've earned the right to race each other, and we did -- cleanly.",
+        "Close. Closer than the team would have liked, I should think. But that's racing.",
+        "We pushed each other all afternoon. That's what a good pairing is for -- nobody got a free ride.",
+    ],
+    "team_orders": [
+        "We were free to race. It's the only way I'd want it.",
+        "No orders. We sorted it on the track, the way it should be.",
+        "If there was a call to hold station, I'd like to think I heard it... eventually.",
+    ],
+    "weather": [
+        "You commit to a read and you live with it. Today the read was right.",
+        "Half of it is nerve. You can't wait to be certain -- by then you've lost it. I went early, it paid.",
+        "The track tells you, if you're listening. I listened a fraction sooner than the rest.",
+    ],
+    "survival": [
+        "She was bruised, but she answered. You drive around the damage and hope it holds. It held.",
+        "Wounded but willing. You shorten the braking, you nurse it, you count the laps down.",
+        "Not pretty after that knock. But a damaged car on the podium beats a perfect one in the gravel.",
+    ],
+    "pole_to_win": [
+        "Never as easy as it looks. You're managing the gap, the tyres, your own mind, every lap.",
+        "Controlled, yes -- but control is work. The moment you relax out front is the moment it slips.",
+        "From the front you race the track and your own concentration. Both tried to catch me out.",
+    ],
+    "win_open": [
+        "When the gap behind me stopped coming down, I let myself believe it. Not before.",
+        "There's a moment the car comes to you and everything else goes quiet. After that, just laps.",
+        "I knew when I crossed the line, and not a corner sooner. You never count it before then.",
+    ],
+}
+
+# CHARACTER OVERRIDES -- the authored gold, keyed by driver then angle. Where a
+# driver has a line for the angle being asked, it's used instead of the generic
+# floor; everything else falls through gracefully. This is where the philosophy
+# earns its place -- by answering a RACING question in the driver's own voice.
+PODIUM_ANSWERS = {
+    "Emma Goldman": {
+        "teammate": ["Bakunin and I would be ashamed to hold station for one another. We raced flat out -- it's the only honest way."],
+        "team_orders": ["Orders? On THIS team? They wouldn't dare key the radio. We settle it on the track, every single time."],
+    },
+    "Mikhail Bakunin": {
+        "teammate": ["Hold station for Goldman? She'd never forgive me, and I'd never forgive myself. We tear it down together, the pair of us."],
+        "win_open": ["I attacked from lights to flag and never once thought about managing it. Lead, lose it, take it straight back -- that is my whole race plan.",
+                     "I have one gear: forward, hard. It went wrong for everyone but me today, which is roughly the plan."],
+    },
+    "Frantz Fanon": {
+        "teammate": ["Closer than the timing screen will ever show. He taught me everything I know about racing. He did not, today, teach me to lift."],
+        "team_orders": ["Hold position behind my old teacher? No. I respect him far too much to insult him by lifting."],
+        "charge": ["I saw the gaps and I took them. You do not wait to be granted a place out here -- you go and you take it."],
+    },
+    "Aimé Césaire": {
+        "teammate": ["Fanon races like the student who outgrew the lesson. I taught him patience; he has clearly mislaid it. No matter -- it was a fine fight."],
+        "pole_to_win": ["I let the hotheads tear past and tear themselves up. Clean lines, cool head -- and there was the win, waiting at the end."],
+        "win_open": ["Composed all the way down. I wrote the lap out longhand and it proved quicker than their shouting."],
+    },
+    "Niccolò Machiavelli": {
+        "weather": ["The plan accounted for the rain before the first cloud arrived. Fortune merely confirmed what preparation had already decided."],
+        "win_open": ["I knew at lights-out. The result was settled on the pit wall on Thursday; today was merely its execution."],
+        "charge": ["Cunning, not force. I let them tire themselves fighting, and arrived, unhurried, at the front."],
+    },
+    "Karl Marx": {
+        "charge": ["It was not heroics. It was the conditions, read correctly and applied patiently, lap after lap. The order corrects itself in the end."],
+        "win_open": ["History was on my side this afternoon. So were the tyres. Today, the two were the same thing."],
+        "weather": ["The material conditions shifted, and I adapted to them before the others noticed they had. That is the whole of strategy."],
+    },
+    "Friedrich Nietzsche": {
+        "charge": ["I held position exactly never. Forward was the only direction I was willing to recognise, so forward I went."],
+        "survival": ["The knock sharpened me. I drove harder after it than most manage with an unmarked car."],
+        "win_open": ["I took the lead, and then I simply kept taking. At no corner did I decide I had enough.",
+                     "I drove every lap as though I would have to drive it again forever. That tends to be quick."],
+    },
+    "Simone de Beauvoir": {
+        "charge": ["Nothing out there was given to me. I made every place, one decision at a time, and lived with each one."],
+        "pole_to_win": ["One is not born in front -- one stays there by choosing well, corner after corner. I chose well."],
+    },
+    "Michel Foucault": {
+        "weather": ["I'd committed to my move while the rest were still waiting for the wall to commit for them. That one lap was the race."],
+        "win_open": ["The track herds everyone onto the same line. I spent the afternoon taking the ones it didn't want me to take."],
+    },
+    "Rosa Luxemburg": {
+        "weather": ["I didn't wait to be told. I saw the track turning and came in a lap before the pit wall would have called it."],
+        "win_open": ["From fourth, I picked my laps and pounced when the gaps came. You can't plan that -- you feel it, and you go."],
+    },
+    "Plato": {
+        "pole_to_win": ["I drove the lap I had already seen, complete, in my mind. The rest were chasing a shadow of it."],
+        "win_open": ["I had driven the whole race in my head before lights-out. Out there I simply matched the picture, corner by corner.",
+                     "No surprises. I had seen this race complete before the lights went out, and I spent the afternoon making the world agree with it."],
+    },
+    "Diogenes": {
+        "win_open": ["I expected nothing and arrived first. I recommend the method to the others."],
+        "team_orders": ["Team orders? I recognise no authority but my own. The pit wall is welcome to shout into its barrel."],
+    },
+    "Jacques Derrida": {
+        "win_open": ["I found the gap where their certainty about the line used to be, and was through it before they noticed it had gone."],
+        "charge": ["I unpicked their certainty about the racing line until there was a gap where their confidence had been. Then I drove through it."],
+    },
+    "Mary Wollstonecraft": {
+        "charge": ["I took the chances I was owed and made each one count. No heroics -- just moving forward, place by place, all afternoon."],
+        "win_open": ["Clear thinking, lap after lap. I didn't out-muscle anyone today -- I out-reasoned them into the braking zones."],
+    },
+    "Thomas Paine": {
+        "win_open": ["No cunning, no theatre. Plain courage, plainly applied. It tends to be enough."],
+        "survival": ["She was bent, not broken. I shortened the braking, nursed the damage, and counted every last lap down to the flag."],
+    },
+    "Herbert Marcuse": {
+        "charge": ["Every corner the others backed out of, I stayed in. That is where each of those places came from -- the moment they lifted and I did not."],
+        "survival": ["The sensible move was to back out. I declined the sensible move, as is my habit."],
+    },
+    "Theodor Adorno": {
+        "win_open": ["I drove a controlled, joyless, maximally efficient race. I'm told that is not how one is meant to enjoy it. I enjoyed it regardless."],
+        "pole_to_win": ["From the front it is all management -- the gap, the tyres, one's own creeping suspicion of the whole enterprise. I managed all three."],
+    },
+    "Richard Rorty": {
+        "weather": ["I went to the inters a lap before the textbook said to. Did it look right? No idea -- it put me up the road, which is all I asked of it."],
+        "win_open": ["I stopped wondering whether my line was 'truly' the quickest and just drove the one that kept working. It kept working all day."],
+    },
+}

@@ -35,6 +35,7 @@ import wave
 ESPEAK_VOICE = {
     "pbp":    {"voice": "en-gb+m3", "speed": 178, "pitch": 64, "amplitude": 135},
     "colour": {"voice": "en-gb+m5", "speed": 150, "pitch": 32, "amplitude": 120},
+    "report": {"voice": "en-gb+f3", "speed": 170, "pitch": 58, "amplitude": 130},  # Suze, the pit-lane reporter -- a third, distinct voice
 }
 DEFAULT_VOICE = {"voice": "en-gb+m2", "speed": 165, "pitch": 50, "amplitude": 125}
 
@@ -192,6 +193,7 @@ PIPER_VOICE_DIR = os.environ.get("PIPER_VOICE_DIR") or \
 PIPER_VOICE = {
     "pbp":    "en_GB-alan-medium.onnx",                  # Vale -- the lap caller
     "colour": "en_GB-northern_english_male-medium.onnx", # Benny -- the colour man
+    "report": "en_US-ryan-high.onnx",                    # Suze -- the pit-lane reporter (the third voice in voices/README)
 }
 PIPER_DEFAULT = "en_US-ryan-high.onnx"                    # a third voice (podium, etc.)
 

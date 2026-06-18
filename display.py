@@ -13,47 +13,13 @@ Two distinct jobs live here, and they are kept apart on purpose:
   * WRAP-UP     (render_summary) -- the post-race story, built from a RaceSummary.
 """
 
-from random import choice
-
 from simulation import QUALIFYING_CUTOFF
 
 
-# Each cause carries SEVERAL phrasings -- the commentary picks one at random, so the
-# same kind of mistake doesn't read the same way twice. {at the corner} is appended
-# by the caller. Causes line up with simulation._solo_cause.
-CAUSE_PHRASE = {
-    "off-track": ["runs wide", "runs out of road", "sails off the circuit",
-                  "drops it onto the run-off", "overcooks it and runs wide"],
-    "lock-up":   ["locks up and runs deep", "flat-spots the fronts and skates wide",
-                  "locks the inside front", "gets it all wrong under braking",
-                  "lights up the fronts and sails on"],
-    "spin":      ["spins it", "snaps round", "gets it all out of shape and spins",
-                  "loses the rear and spins", "half-spins and scrabbles for grip"],
-    "grass":     ["puts a wheel on the grass", "runs onto the green stuff and slithers",
-                  "gets onto the marbles", "drops two wheels onto the grass",
-                  "runs in too hot and onto the grass"],
-    "kerb":      ["is launched over a sausage kerb", "clatters over the kerb",
-                  "rides the kerb too hard and bounces wide", "gets the kerb all wrong",
-                  "is fired skyward by the kerb"],
-    "wall":      ["clips the wall", "brushes the barrier", "kisses the wall on the exit",
-                  "glances off the barrier", "taps the wall"],
-    "gravel":    ["digs into the gravel", "ploughs into the gravel trap",
-                  "drops it into the gravel", "fishtails into the gravel",
-                  "beaches a wheel in the gravel"],
-}
-
-# Severity, said the way a commentator would say it (no numbers) -- a pool each.
-SOLO_FLOURISH = {
-    "minor":    ["but gathers it up and carries on", "but catches it and continues",
-                 "no harm done, they're still going", "but holds onto it, lucky"],
-    "moderate": ["a scruffy moment, and that will have cost some time",
-                 "untidy -- they'll have lost a chunk there",
-                 "a real wobble, and time lost", "messy, and that hurts the lap"],
-    "major":    ["a big one -- that could haunt the rest of their race",
-                 "a huge moment -- lucky to still be running",
-                 "an enormous error -- that will hurt", "a massive moment, and time torn up"],
-}
-CONTACT_WORD = {"minor": "light", "moderate": "firm", "major": "heavy"}
+# The spoken CALLS -- a pass, a crash, a stop, an undercut -- and their phrasing
+# pools (CAUSE_PHRASE / SOLO_FLOURISH / CONTACT_WORD) now live with the booth:
+# the words are data in lore.py, the selection is in colour.py (Booth.call_*).
+# display.py keeps only the SCREEN furniture and the numeric TELEMETRY below.
 
 # How a retirement reads in the wrap-up, by raw cause (analysis stays wordless).
 RETIRE_PHRASE = {
@@ -131,85 +97,6 @@ def render_standings(standings, lap, total_laps, conditions=None):
         lines.append(f"  P{s.position:<2} {s.name:<21} {s.team:<15} "
                      f"{gap_str:<10} last {format_time(s.last_lap)}{_tyre_tag(s)}{_damage_tag(s)}")
     return "\n".join(lines)
-
-
-# --- COMMENTARY: the spoken voice. Pure prose, never numbers. ----------------
-def _at(loc):
-    """' at the Parabolica' if we know the corner, '' if we don't."""
-    return f" at {loc}" if loc else ""
-
-
-def render_commentary(inc):
-    """One speakable line of commentary for an incident. No telemetry, ever."""
-    at = _at(inc.location)
-    if inc.cause == "over the limit":
-        return f"  >> {inc.driver_name} is hopelessly out of their depth -- throws it away{at}, and OUT!"
-    if inc.cause == "damage failure":
-        return f"  >> {inc.driver_name}'s earlier damage finally lets go -- OUT OF THE RACE!"
-    if inc.cause == "collision":
-        other = inc.other_name
-        if inc.retirement and inc.other_retired:
-            return (f"  >> CONTACT{at}! {inc.driver_name} and {other} collide -- "
-                    f"a {inc.severity} one, and they are BOTH OUT OF THE RACE!")
-        if inc.other_retired:
-            return (f"  >> {inc.driver_name} dives down the inside of {other}{at} -- "
-                    f"{other} is tipped into a spin and OUT, {inc.driver_name} limps on!")
-        if inc.retirement:
-            return (f"  >> {inc.driver_name} throws it up the inside of {other}{at} and comes "
-                    f"off worst -- {inc.driver_name} is OUT!")
-        word = CONTACT_WORD[inc.severity]
-        return (f"  >> {inc.driver_name} dives down the inside of {other}{at} -- "
-                f"side by side... and they make {word} contact, both keep going!")
-    # solo: the lone errors -- a random phrasing each time, so they never read stale.
-    options = CAUSE_PHRASE.get(inc.cause)
-    phrase = choice(options) if options else inc.cause
-    if inc.retirement:
-        return f"  >> {inc.driver_name} {phrase}{at} -- a {inc.severity} one -- AND THAT'S THE END OF THEIR RACE!"
-    return f"  >> {inc.driver_name} {phrase}{at} -- {choice(SOLO_FLOURISH[inc.severity])}"
-
-
-# --- COMMENTARY: completed overtakes (the other half of the racing story). ----
-def render_overtake(ov):
-    """One speakable line for a clean pass. Drama scales with what's at stake."""
-    if ov.location == "the start":
-        if ov.position == 1:
-            return f"  >> {ov.passer} BEATS them all off the line -- leads into Turn 1!"
-        if ov.places_gained >= 4:
-            return f"  >> {ov.passer} -- what a launch! Storms up to P{ov.position}!"
-        if ov.places_gained >= 2:
-            return f"  >> {ov.passer} gets a flier off the line, up to P{ov.position}!"
-        return f"  >> {ov.passer} edges ahead at the start, into P{ov.position}."
-    at = _at(ov.location)
-    if ov.position == 1:
-        return f"  >> {ov.passer} sweeps past {ov.passed}{at} -- and takes the LEAD!"
-    if ov.position <= 3:
-        return f"  >> {ov.passer} forces it past {ov.passed}{at} for P{ov.position}!"
-    return f"  >> {ov.passer} gets the move done on {ov.passed}{at}, up into P{ov.position}."
-
-
-# --- COMMENTARY: pit stops (fresh rubber, at the cost of track position). -----
-def render_pit(ps):
-    """One speakable line for a pit stop. The number of the stop colours the call."""
-    nth = {1: "", 2: "second ", 3: "third "}.get(ps.stop_number, f"{ps.stop_number}th ")
-    onto = f" onto {ps.compound}s" if ps.compound else ""
-    article = "an" if (ps.old_stint in (11, 18) or str(ps.old_stint).startswith("8")) else "a"
-    if ps.stop_number >= 2:
-        return (f"  >> {ps.driver_name} is back in for the {nth}time -- "
-                f"{article} {ps.old_stint}-lap stint done, switching{onto}.")
-    return (f"  >> {ps.driver_name} peels into the pits after {ps.old_stint} laps, "
-            f"comes out{onto}.")
-
-
-# --- COMMENTARY: the undercut (a pass won in the pit lane). --------------------
-def render_undercut(uc):
-    """One speakable line for an undercut. The fresh tyres, not a move on track,
-    did the work -- so the call leans on the strategy, not the corner."""
-    earlier = "a lap earlier" if uc.laps_earlier == 1 else f"{uc.laps_earlier} laps earlier"
-    if uc.position == 1:
-        return (f"  >> THE UNDERCUT IS ON FOR THE LEAD! {uc.undercutter} stopped {earlier} "
-                f"than {uc.victim} -- and has taken the lead in the pit lane!")
-    return (f"  >> THE UNDERCUT WORKS! {uc.undercutter} boxed {earlier} than {uc.victim}, "
-            f"and the fresh rubber vaults them ahead into P{uc.position}.")
 
 
 # --- TELEMETRY: the fiddly bits. Numbers live HERE, not in commentary. -------
