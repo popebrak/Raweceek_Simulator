@@ -26,7 +26,7 @@ import random
 
 from drivers import GRID
 from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
-                  GENERIC_INCIDENT, GENERIC_OVERTAKE,
+                  GENERIC_INCIDENT, GENERIC_OVERTAKE, GENERIC_PIT,
                   Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK)
 
 _DRIVER_BY_NAME = {d.name: d for d in GRID}
@@ -103,28 +103,38 @@ _RUNIN = {
     "close": {      # the lead is under real threat -- a nail-biter
         "pbp": ["{count} -- and {sec} is ALL OVER the back of {ldr}!",
                 "{count}, and this is on a knife edge -- {sec} right with {ldr}!",
-                "{count}, and {sec} has thrown everything at {ldr} -- this is for the win!"],
+                "{count}, and {sec} has thrown everything at {ldr} -- this is for the win!",
+                "{count} -- {sec} filling {ldr}'s mirrors, this is going to the wire!",
+                "{count}, and you cannot separate them -- {ldr} and {sec}, nose to tail!"],
         "colour": ["He can see him in the mirrors now. This is going to be desperate.",
                    "One lock-up, one twitch, and it's gone. Edge of your seat.",
-                   "Everything on the line here. Nobody is sitting down for this."],
+                   "Everything on the line here. Nobody is sitting down for this.",
+                   "Whoever wants it more over these last few corners. That simple, that brutal.",
+                   "Forty years I've done this and my heart's still going. Look at it."],
     },
     "closing": {    # the gap is coming down, but maybe not in time
         "pbp": ["{count} -- {sec} closing on {ldr}, but is there enough road left?!",
                 "{count}, and the gap is coming DOWN -- {ldr} will not want to see this!",
-                "{count} -- {ldr} still ahead, but {sec} can smell it now!"],
+                "{count} -- {ldr} still ahead, but {sec} can smell it now!",
+                "{count}, and {sec} has found something -- {ldr}'s lead is shrinking!",
+                "{count} -- it's {ldr}, but {sec} is reeling them in hand over fist!"],
         "colour": ["Tyres gone off, maybe. Whatever it is, that lead's not safe.",
                    "A few laps ago you'd have called it done. Not any more.",
-                   "This could run all the way to the line, you know."],
+                   "This could run all the way to the line, you know.",
+                   "The maths is tight. A backmarker at the wrong moment and it's on.",
+                   "He'll be counting corners now, not laps. Praying for the flag."],
     },
     "clear": {      # a comfortable lead -- but the occasion still lifts the crowd
         "pbp": ["{count}, and {ldr} looks to have this in hand -- but LISTEN to that crowd!",
                 "{count} -- {ldr} out on their own up front, and the grandstands are already up!",
                 "{count}, and {ldr} is sailing toward it -- the whole place rising to its feet!",
-                "{count} -- daylight for {ldr}, and you can hear the roar building already!"],
+                "{count} -- daylight for {ldr}, and you can hear the roar building already!",
+                "{count}, and barring disaster this is {ldr}'s -- the ovation's already starting!"],
         "colour": ["Doesn't matter who's where. You stand and applaud a drive like that.",
                    "Procession or not, that's history happening out front. Up they get.",
                    "They know exactly what they're watching. Whole place on its feet.",
-                   "Win like this and the ovation's a formality. Listen to them."],
+                   "Win like this and the ovation's a formality. Listen to them.",
+                   "Nothing left to decide up front now -- just a lap of honour in all but name."],
     },
 }
 
@@ -283,6 +293,13 @@ class Booth:
                 or self._pick(GENERIC_INCIDENT, {"incident"})
                 or self._pick(pool, {"any"}))
 
+    def for_pit(self, ps):
+        """The booth's occasional dry word on a pit stop. Most stops pass without
+        comment; now and then the driver's own line, or a generic one, gets an airing.
+        The caller decides how often to ask (a stop every lap would be noise)."""
+        return (self._pick(DRIVER_LORE.get(ps.driver_name, []), {"pit"})
+                or self._pick(GENERIC_PIT, {"pit"}))
+
     # --- the quiet laps: a running DISCUSSION, a beat at a time -------------
     def next_chatter(self, standings, lap):
         """The green-flag conversation. Advance the active discussion by a beat (a
@@ -386,21 +403,39 @@ class Booth:
 
     def for_finish(self, standings):
         """The flag. The winner's moment, always called -- a race never ends on
-        silence."""
+        silence. Deep pools, picked fresh, so the chequered flag doesn't read the
+        same way two races running."""
         running = [s for s in standings if not s.retired]
         if not running:
             return None
         w = running[0]
-        vale = random.choice([
+        vale = self._fresh("_finish_pbp", [
             f"{w.name} takes the chequered flag -- WINS the Grand Prix!",
             f"It's {w.name}! Across the line to take it -- what a result for {w.team}!",
+            f"The flag is OUT, and {w.name} has WON it -- a famous day for {w.team}!",
+            f"{w.name} brings it home -- victory, and the {w.team} garage erupts!",
+            f"And it's {w.name} who takes the win -- they have been imperious today!",
+            f"{w.name} crosses the line first -- the chequered flag, and the Grand Prix, is theirs!",
         ])
-        benny = random.choice([
+        benny = self._fresh("_finish_colour", [
             "Get up out of your seats. That is how you win a motor race.",
             "Brilliant. Argue about the philosophy later -- right now, just applaud.",
             "Deserved every inch of that. Cracking drive.",
+            "You don't see many better than that. Take a bow.",
+            "Whatever you think of their ideas, you cannot fault the driving. Superb.",
+            "Flawless when it mattered. That's a winner's afternoon, start to finish.",
+            "They thought, they drove, they won. In that order. Lovely to watch.",
         ])
         return banter([("pbp", vale), ("colour", benny)])
+
+    def _fresh(self, key, options):
+        """Pick from `options`, avoiding the index used last time for this key -- the
+        generic no-immediate-repeat used by the run-in and the flag."""
+        last = self._last_runin.get(key)
+        pool = [i for i in range(len(options)) if i != last] or list(range(len(options)))
+        i = random.choice(pool)
+        self._last_runin[key] = i
+        return options[i]
 
     # --- weather: the live conditions, as commentary ------------------------
     def for_weather(self, change):

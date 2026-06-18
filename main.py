@@ -31,6 +31,7 @@ DIVIDER = "  " + "-" * 60
 POINTS_POSITIONS = 10        # passes below this rarely matter -- the points are the story
 PIT_CALL_POSITION = 6        # only the sharp end's stops are worth a mention
 START_JUMP_WORTH = 3         # a launch this big gets called even from outside the points
+PIT_COLOUR = 0.30            # chance the colour man adds a dry word to a called pit stop
 
 
 def _call(text):
@@ -46,6 +47,19 @@ def _overtake_worth(ov, notable_pos):
     if ov.location == "the start":
         return ov.position <= POINTS_POSITIONS or ov.places_gained >= START_JUMP_WORTH
     return ov.position <= min(notable_pos, POINTS_POSITIONS)
+
+
+def _weather_chatter_chance(cond):
+    """How often the booth bothers remarking on the weather, by how notable it is.
+    Wet: it's the story, talk about it. Hot/cold dry: worth the odd mention. Fair and
+    dry: a real booth barely brings it up, so this one rarely does either."""
+    if cond is None:
+        return 0.0
+    if cond.label != "dry":
+        return 0.32                       # wet/damp/greasy -- the conditions ARE the race
+    if cond.track_temp >= 40 or cond.track_temp <= 16:
+        return 0.07                       # a genuinely hot or cold day -- mention it now and then
+    return 0.02                           # a fair, dry afternoon -- let them talk racing
 
 
 def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_pause=8.0):
@@ -121,6 +135,10 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         for ps in report.pit_stops:
             if pos_of.get(ps.driver_name, 99) <= PIT_CALL_POSITION:
                 say("pbp", _call(render_pit(ps)))
+                if random.random() < PIT_COLOUR:     # now and then, a dry word on the gamble
+                    bit = booth.for_pit(ps)
+                    if bit:
+                        play(bit)
         # An undercut completes on the victim's stop lap -- always worth calling, it
         # IS the strategic story -- so it goes in right after the stop that made it.
         for uc in report.undercuts:
@@ -152,12 +170,13 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
                 for role, line in runin.turns:
                     commentary.append(voice(report.lap, role, line))
             else:
-                # Some quiet laps go to the weather (temps and sky on a dry day, the
-                # state of the track on a wet one) rather than the philosophy thread --
-                # fresh material that exists on every single lap, which is the whole
-                # reason the weather earns its place in the booth.
+                # Weather only earns a remark when it's actually worth one. In the wet
+                # the conditions ARE the story; on a hot or cold day it's worth the odd
+                # mention; on a fair, dry afternoon a real booth would barely bring it
+                # up -- so neither does this one. The rest of the time, they talk racing.
                 ambient = (booth.weather_ambient(report.conditions)
-                           if random.random() < 0.35 else None)
+                           if random.random() < _weather_chatter_chance(report.conditions)
+                           else None)
                 if ambient:
                     for role, line in ambient.turns:
                         commentary.append(voice(report.lap, role, line))
