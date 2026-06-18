@@ -18,6 +18,7 @@ from display import (print_timing_sheet, render_standings, render_commentary,
                      render_overtake, render_telemetry, render_result,
                      render_summary, track_banner, render_pit, render_undercut)
 from colour import Booth, voice, voice_show
+from narration import make_narrator, SilentNarrator
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
@@ -62,11 +63,14 @@ def _weather_chatter_chance(cond):
     return 0.02                           # a fair, dry afternoon -- let them talk racing
 
 
-def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_pause=8.0):
+def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_pause=8.0,
+              narrator=None):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
     if booth is None:                              # the two voices: Vale (calls) & Benny (colour)
         booth = Booth(track)                       # shared with the pre/post-race shows when passed in
+    if narrator is None:                           # no audio unless one is handed in
+        narrator = SilentNarrator()
 
     # Which passes are worth a call depends on the circuit. Where passing is hard
     # (Monaco, Suzuka) even a midfield move is an event, so we call deeper into the
@@ -76,6 +80,8 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         notable_pos += round(track.overtaking_difficulty * 10)
 
     def draw(report):
+        if narrator.capture:        # record-only render: no terminal output at all
+            return
         print(CLEAR_SCREEN, end="")
         print(render_standings(report.standings, report.lap, total_laps, report.conditions))
         print()                                   # a line of space before the commentary
@@ -96,10 +102,10 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         # Every spoken line is now stamped with a speaker (voice()): Vale makes the
         # factual call, Benny reacts -- and a Bit can be a whole exchange between them.
         pos_of = {s.name: s.position for s in report.standings}
-        new_lines = []
+        new_lines = []        # each item is (role, text); role None = shown, never spoken
 
         def say(role, text):
-            new_lines.append(voice(report.lap, role, text))
+            new_lines.append((role, text))
 
         def play(bit):
             for role, line in bit.turns:            # a Bit is one or more turns of banter
@@ -118,7 +124,7 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
             if show_telemetry:
                 tele = render_telemetry(inc).strip()
                 if tele:
-                    new_lines.append(f"        {tele}")
+                    new_lines.append((None, f"        {tele}"))
             bit = booth.for_incident(inc)           # Benny's take on the moment
             if bit:
                 play(bit)
@@ -153,12 +159,21 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
 
         if new_lines:
             # Tick the new calls in one at a time, spread across the lap, so the
-            # feed reads live. Total time still equals one lap.
+            # feed reads live. When the narrator is silent we keep the old per-line
+            # beat; when it's audible the spoken line itself is the beat, so the race
+            # runs at talking speed (you can't out-pace a voice) and `speed` becomes
+            # a floor rather than the clock.
             slice_time = lap_budget / len(new_lines)
-            for line in new_lines:
-                commentary.append(line)
+            for role, text in new_lines:
+                if role is None:                      # telemetry: shown, never spoken
+                    commentary.append(text)
+                    draw(report)
+                    time.sleep(slice_time)
+                    continue
+                commentary.append(voice(report.lap, role, text))
                 draw(report)
-                time.sleep(slice_time)
+                if not narrator.speak(role, text):    # blocks until done when audible
+                    time.sleep(slice_time)
         else:
             # A quiet lap. In the closing laps the booth builds the run-in tension
             # (generated from the gap and laps left); earlier on it runs its ongoing
@@ -167,8 +182,7 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
             # air is filled.
             runin = booth.for_runin(report.standings, report.lap, total_laps)
             if runin:
-                for role, line in runin.turns:
-                    commentary.append(voice(report.lap, role, line))
+                quiet_lines = list(runin.turns)
             else:
                 # Weather only earns a remark when it's actually worth one. In the wet
                 # the conditions ARE the story; on a hot or cold day it's worth the odd
@@ -178,17 +192,28 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
                            if random.random() < _weather_chatter_chance(report.conditions)
                            else None)
                 if ambient:
-                    for role, line in ambient.turns:
-                        commentary.append(voice(report.lap, role, line))
+                    quiet_lines = list(ambient.turns)
                 else:
-                    for role, line in booth.next_chatter(report.standings, report.lap):
-                        commentary.append(voice(report.lap, role, line))
-            draw(report)
-            time.sleep(lap_budget)
+                    quiet_lines = list(booth.next_chatter(report.standings, report.lap))
+
+            # Same emit rule as a busy lap: show each line, speak it if we can, and
+            # only fall back to a timed beat when there's no voice to pace us.
+            if quiet_lines:
+                slice_time = lap_budget / len(quiet_lines)
+                for role, line in quiet_lines:
+                    commentary.append(voice(report.lap, role, line))
+                    draw(report)
+                    if not narrator.speak(role, line):
+                        time.sleep(slice_time)
+            else:
+                draw(report)
+                time.sleep(lap_budget)
 
     # Hold the final commentary -- the run to the flag and the winner's call -- on
     # screen for a beat before the results wipe it, so it can actually be read (and,
-    # until TTS lands, so there's time to follow what was just said).
+    # when no voice is reading aloud, so there's time to follow what was just said).
+    if narrator.capture:
+        return                       # record-only: no screen, no results, no waiting
     time.sleep(end_pause)
 
     print(CLEAR_SCREEN, end="")
@@ -197,24 +222,34 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
     print(render_summary(summarize_race(history, track)))
 
 
-def _play_show(turns, pace):
+def _play_show(turns, pace, narrator):
     """Play a pre/post-race show segment as paced dialogue -- each line printed in
     turn with a short beat between, so it reads like a broadcast rather than a dump.
-    No lap tags (voice_show); the shows happen off the clock."""
+    No lap tags (voice_show); the shows happen off the clock. With a voice attached,
+    the spoken line sets the pace; otherwise the printed beat does."""
     for role, line in turns:
         print(voice_show(role, line))
         sys.stdout.flush()
-        time.sleep(pace)
+        if not narrator.speak(role, line):
+            time.sleep(pace)
 
 
 def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
-                laps=None, difficulty=None, show_pace=1.0, end_pause=10.0):
+                laps=None, difficulty=None, show_pace=1.0, end_pause=10.0,
+                narrate="espeak"):
     # Pick a circuit (by name, by object, or at random) -- the track decides the
     # race distance and how hard it is to pass.
     if track is None:
         track = random.choice(CALENDAR)
     elif isinstance(track, str):
         track = track_by_circuit(track) or random.choice(CALENDAR)
+
+    # The voice. `narrate="espeak"` reads the booth aloud if espeak is installed,
+    # and quietly falls back to silence (the original visual-only playback) if not.
+    # Pass narrate="silent" to force the screen-only experience.
+    narrator = make_narrator(narrate)
+    if narrator.audible:
+        print("  [voices on -- the race now runs at talking speed]")
 
     print(track_banner(track))
     quali_results = run_qualifying(GRID, track)
@@ -227,7 +262,7 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     # The pre-race show: history, the top of the grid, what to watch.
     print(DIVIDER)
     print("  COUNTDOWN TO GREEN")
-    _play_show(booth.preview(quali_results, track), show_pace)
+    _play_show(booth.preview(quali_results, track), show_pace, narrator)
 
     starting_grid = [driver for driver, lap, qualified in quali_results if qualified]
     history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
@@ -237,18 +272,49 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     print("\n  Lights out -- here we go!\n")
     time.sleep(grid_pause)
     play_race(history, speed=speed, track=track, show_telemetry=show_telemetry,
-              booth=booth, end_pause=end_pause)
+              booth=booth, end_pause=end_pause, narrator=narrator)
 
     # The post-race show: how it was won, where strategy turned, words from the podium.
     print()
     print(DIVIDER)
     print("  POST-RACE SHOW")
-    _play_show(booth.debrief(summarize_race(history, track), history, track), show_pace)
+    _play_show(booth.debrief(summarize_race(history, track), history, track), show_pace, narrator)
+
+
+def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None, gap=0.35):
+    """Render a whole weekend's commentary -- the Countdown to Green, the race, and
+    the post-race show -- to a single WAV file, in the two booth voices. Needs
+    espeak; returns the path on success or None if no synth (or no lines) were found.
+
+    It replays the exact same line logic as a live race through a record-only narrator
+    (no screen, no waiting), gathers the script, and stitches the clips together."""
+    from narration import CaptureNarrator, EspeakNarrator, render_script_to_wav
+    if isinstance(track, str):
+        track = track_by_circuit(track) or random.choice(CALENDAR)
+    elif track is None:
+        track = random.choice(CALENDAR)
+
+    cap = CaptureNarrator()
+    booth = Booth(track)
+    quali_results = run_qualifying(GRID, track)
+    cap.script.extend(booth.preview(quali_results, track))
+    starting_grid = [d for d, lap, ok in quali_results if ok]
+    history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
+    play_race(history, speed=1e9, track=track, booth=booth, narrator=cap)
+    cap.script.extend(booth.debrief(summarize_race(history, track), history, track))
+
+    engine = EspeakNarrator()
+    if not engine.available:
+        print("  [no espeak found -- cannot render audio. Install espeak-ng.]")
+        return None
+    return path if render_script_to_wav(engine, cap.script, path, gap=gap) else None
 
 
 if __name__ == "__main__":
     # Pass e.g. track="Monaco" to pick a circuit, or leave it for a random one.
-    # grid_pause / end_pause hold the pre-race and post-race screens long enough to
-    # read; raise them if you want even more time, drop them once TTS is reading aloud.
+    # narrate="espeak" reads the booth aloud (install espeak-ng first); it falls back
+    # to silent on its own if espeak isn't there. Use narrate="silent" to force the
+    # screen-only run. grid_pause / end_pause hold the pre/post-race screens long
+    # enough to read; with voices on, the race paces itself to the speech.
     run_weekend(track=None, speed=20.0, grid_pause=10.0, end_pause=10.0,
-                show_telemetry=False)
+                show_telemetry=False, narrate="espeak")
