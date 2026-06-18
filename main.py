@@ -17,6 +17,7 @@ from simulation import run_qualifying, run_race, summarize_race
 from display import (print_timing_sheet, render_standings, render_commentary,
                      render_overtake, render_telemetry, render_result,
                      render_summary, track_banner, render_pit, render_undercut)
+from colour import ColourCommentator
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
@@ -24,9 +25,17 @@ NOTABLE_OVERTAKE = 3         # baseline: call passes for this position or better
 DIVIDER = "  " + "-" * 60
 
 
+def colour_line(lap, text):
+    """The colour analyst's voice in the feed -- prose, indented, and WITHOUT the
+    '>>' marker the lap caller uses, so the two voices read as distinct: '>>' is
+    what just happened, the indented prose is what it means."""
+    return f"  L{lap:>2}     {text}"
+
+
 def play_race(history, speed, track=None, show_telemetry=False):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
+    booth = ColourCommentator(track)              # the second voice: colour & backstory
 
     # Which passes are worth a call depends on the circuit. Where passing is hard
     # (Monaco, Suzuka) even a midfield move is an event, so we call deeper into the
@@ -60,12 +69,18 @@ def play_race(history, speed, track=None, show_telemetry=False):
                 tele = render_telemetry(inc).strip()
                 if tele:
                     new_lines.append(f"        {tele}")
+            colour = booth.for_incident(inc)          # the analyst's gloss on the moment
+            if colour:
+                new_lines.append(colour_line(report.lap, colour))
         # Call the passes worth calling. The standing start is always worth it --
         # the first-lap scramble is the drama -- so start getaways bypass the
         # threshold that governs ordinary corner passes.
         for ov in report.overtakes:
             if ov.location == "the start" or ov.position <= notable_pos:
                 new_lines.append(f"  L{report.lap:>2}  {render_overtake(ov).strip()}")
+                colour = booth.for_overtake(ov)       # the history behind the move
+                if colour:
+                    new_lines.append(colour_line(report.lap, colour))
         # Pit stops are always worth a mention -- they reshuffle the race.
         for ps in report.pit_stops:
             new_lines.append(f"  L{report.lap:>2}  {render_pit(ps).strip()}")
@@ -83,6 +98,12 @@ def play_race(history, speed, track=None, show_telemetry=False):
                 draw(report)
                 time.sleep(slice_time)
         else:
+            # A quiet green-flag lap -- exactly where a real booth fills the air
+            # with backstory. Ask the analyst for one line of colour; if it has
+            # something, it goes up before we draw and sleep the lap away.
+            colour = booth.for_lull(report.standings, report.lap, total_laps)
+            if colour:
+                commentary.append(colour_line(report.lap, colour))
             draw(report)
             time.sleep(lap_budget)
 
