@@ -116,6 +116,18 @@ PIT_LOSS = 23.0         # time lost for a stop (pit lane + stationary), absolute
 # builds plans that use >= 2 compounds, which also guarantees at least one stop.
 STRATEGY_MAX_STOPS = 2   # plans considered run 1 or 2 stops (a 3-stop is a one-line extension)
 STRATEGY_NOISE = 14.0    # seconds of plan-cost MISJUDGEMENT a hopeless strategist suffers
+
+# A TACTICAL undercut: a car stuck behind a rival it can't pass pulls its NEXT
+# planned stop FORWARD a few laps to jump them in the pit lane. It doesn't invent a
+# new stop or change compounds -- only the timing flexes -- so the plan (and the
+# two-compound rule) stays intact. Whether a driver SPOTS and commits to the move is
+# the strategy mind at work live: the planners pounce, the chargers sit and fume.
+# (These govern the DECISION to attempt; naming a successful one after the fact is a
+# separate job with its own knobs -- see UNDERCUT_WINDOW & co. in the analysis section.)
+UNDERCUT_TRIGGER_GAP = 1.2    # within this many seconds of the car ahead = 'stuck behind'
+UNDERCUT_BRINGFWD = 4         # how many laps early the next stop can be pulled to attack
+UNDERCUT_MIN_STRATEGY = 0.45  # below this a driver never plays the undercut game
+UNDERCUT_PACE_SLACK = 0.3     # don't undercut a rival more than this much quicker (they'd re-pass)
 # -----------------------------------------------------------------------------
 
 
@@ -531,6 +543,29 @@ def _plan_strategy(driver, track, laps):
     return chosen[1]
 
 
+def _wants_undercut(car, ahead, gap, lap):
+    """Should this car pull its NEXT planned stop FORWARD to undercut the car ahead?
+
+    Yes when: there's a stop left to bring forward, that stop is due within the next
+    few laps (so the tyres are already near their window -- we're retiming a real
+    stop, not inventing an early one), the car is stuck within undercut range of a
+    rival it can't pass and isn't markedly slower than, and -- the skill -- the
+    driver's strategy mind actually spots and commits to it. The chargers never do.
+    """
+    if car.pit_count >= len(car.plan.pit_laps):
+        return False                                  # no stop left to bring forward
+    next_stop = car.plan.pit_laps[car.pit_count]
+    if not 0 < next_stop - lap <= UNDERCUT_BRINGFWD:
+        return False                                  # only pull a stop a few laps early
+    if gap > UNDERCUT_TRIGGER_GAP:
+        return False                                  # not close enough to be 'stuck'
+    if ahead.driver.pace < car.driver.pace - UNDERCUT_PACE_SLACK:
+        return False                                  # rival clearly faster -- they'd just re-pass
+    if car.driver.strategy < UNDERCUT_MIN_STRATEGY:
+        return False                                  # not a strategic thinker
+    return random.random() < car.driver.strategy      # the planners pounce
+
+
 def run_race(starting_grid, track, laps=None, difficulty=None):
     # The track supplies the race distance and how hard it is to pass; either can
     # still be overridden by hand (handy for testing).
@@ -566,6 +601,11 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
 
     for lap in range(1, laps + 1):
         running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
+        # Pre-lap gap to the car directly ahead (race-time, from last lap's totals).
+        # This is the 'am I stuck behind someone?' signal the undercut decision reads.
+        gaps = [float("inf")] * len(running)
+        for j in range(1, len(running)):
+            gaps[j] = running[j].total_time - running[j - 1].total_time
         incidents = []
         overtakes = list(start_events) if lap == 1 else []
         pit_stops = []
@@ -603,12 +643,16 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                     _retire(car, lap, old_total, lap_time, time_lost)
                     continue
 
-            # 2b. Pit stop -- driven by the PLAN, not a reactive threshold. If this
-            # lap is the next scheduled stop, box: fit the planned compound, reset
-            # the tyres, eat the pit loss. The plan was built pre-race by
-            # _plan_strategy; how good it is depends on the driver's `strategy`.
-            if (car.pit_count < len(car.plan.pit_laps)
-                    and lap == car.plan.pit_laps[car.pit_count]):
+            # 2b. Pit stop -- the planned lap, OR pulled forward to attack the car
+            # directly ahead (a tactical undercut). Both box for the SAME planned
+            # rubber and consume the same scheduled stop; the undercut just brings
+            # its timing forward. The plan came from _plan_strategy; spotting the
+            # undercut is the driver's `strategy` mind working live (see _wants_undercut).
+            scheduled = (car.pit_count < len(car.plan.pit_laps)
+                         and lap == car.plan.pit_laps[car.pit_count])
+            tactical = (not scheduled and i > 0
+                        and _wants_undercut(car, running[i - 1], gaps[i], lap))
+            if scheduled or tactical:
                 old_stint = car.stint_laps
                 car.pit_count += 1
                 car.compound = car.plan.compounds[car.pit_count]      # the fresh rubber
