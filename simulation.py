@@ -106,6 +106,14 @@ TYRE_QUAD = 0.0016      # the late 'cliff': grows with stint length squared
 TYRE_MGMT_SWING = 0.7   # how far tyre_management swings the wear rate (+/- ~0.35x)
 PIT_LOSS = 23.0         # time lost for a stop (pit lane + stationary), absolute seconds
 
+# Tyre WARMUP -- the opposite end of the stint from wear. Fresh rubber off the rack
+# is cold and outside its window, so the out-lap is slow; it fades over a few laps
+# as temperature comes in. Magnitude scales with the COMPOUND's warmup trait (hards
+# are slowest to switch on). It does NOT apply to the START tyres -- those are warmed
+# on the formation lap -- only to sets fitted at a pit stop.
+WARMUP_MAX = 1.4        # out-lap penalty in seconds for a neutral compound (fades to 0)
+WARMUP_LAPS = 3         # how many laps the warmup penalty takes to fade away
+
 # --- Compounds & strategy ----------------------------------------------------
 # A compound is just two dials on the wear machine we already built: GRIP (a flat
 # per-lap time offset -- soft is quicker) and WEAR (a multiplier on how fast the
@@ -136,13 +144,17 @@ class Compound:
     name: str
     grip: float          # flat per-lap time offset in seconds (negative = faster)
     wear: float          # multiplier on the wear rate (>1 wears faster)
+    warmup: float        # how slow to switch on when fresh (>1 = takes longer to come in)
 
 
 # The three dry tyres. Tuned so each is the fastest choice for SOME stint length:
 # soft ~1-15 laps, medium ~16-23, hard ~24+ (before track/management scaling).
-SOFT = Compound("soft", -0.75, 2.1)
-MEDIUM = Compound("medium", -0.05, 1.0)
-HARD = Compound("hard", 0.50, 0.5)
+# Warmup is the OTHER half of the trade: the soft switches on almost instantly, the
+# hard takes several laps to reach its window -- which is why a cold out-lap can
+# sink an undercut, and why you don't fit hards for a short stint.
+SOFT = Compound("soft", -0.75, 2.1, 0.6)
+MEDIUM = Compound("medium", -0.05, 1.0, 1.0)
+HARD = Compound("hard", 0.50, 0.5, 1.7)
 COMPOUNDS = [SOFT, MEDIUM, HARD]
 
 
@@ -159,7 +171,8 @@ class CarState:
     driver: Driver
     grid_position: int = 0
     total_time: float = 0.0
-    last_lap: float = 0.0
+    last_lap: float = 0.0             # ACTUAL time for the last lap -- includes traffic, pit, incidents
+    last_clean_lap: float = 0.0       # the green-flag PACE lap -- pace+damage+tyres only, no traffic/pit/incident
     aero_damage: float = 0.0          # persistent per-lap penalty: bodywork/wing
     suspension_damage: float = 0.0    # persistent per-lap penalty: mechanical
     retired: bool = False
@@ -190,13 +203,15 @@ class Standing:
     retired_on_lap: int
     stint_laps: int = 0          # laps on the current tyres -- for the timing tower
     compound: str = ""           # the tyre currently fitted
+    clean_lap: float = 0.0       # green-flag pace lap (no traffic/pit/incident) -- for pace commentary
+    interval: float = 0.0        # gap to the car directly ahead (0 for the leader) -- for battle commentary
 
     @property
     def damage(self):
         return self.aero_damage + self.suspension_damage
 
     @classmethod
-    def from_car(cls, car, position, gap_to_leader):
+    def from_car(cls, car, position, gap_to_leader, interval=0.0):
         """Snapshot a live CarState into a Standing. Keyword args on purpose: add a
         field to the car and you thread it through HERE, in one place, instead of a
         fragile positional constructor buried in _standings()."""
@@ -214,6 +229,8 @@ class Standing:
             retired_on_lap=car.retired_on_lap,
             stint_laps=car.stint_laps,
             compound=car.compound.name,
+            clean_lap=car.last_clean_lap,
+            interval=interval,
         )
 
 
@@ -411,13 +428,21 @@ def _collide(chaser, defender, lap):
 
 
 def _standings(cars):
-    """Running cars first (by race time), then retirements (latest DNF placed higher)."""
+    """Running cars first (by race time), then retirements (latest DNF placed higher).
+    Each running car also carries its interval to the car directly ahead."""
     active = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
     retired = sorted((c for c in cars if c.retired), key=lambda c: -c.retired_on_lap)
     leader_time = active[0].total_time if active else 0.0
-    ordered = active + retired
-    return [Standing.from_car(c, pos, c.total_time - leader_time)
-            for pos, c in enumerate(ordered, start=1)]
+    rows = []
+    prev_total = None
+    for pos, c in enumerate(active + retired, start=1):
+        if c.retired:
+            interval = 0.0
+        else:
+            interval = 0.0 if prev_total is None else c.total_time - prev_total
+            prev_total = c.total_time
+        rows.append(Standing.from_car(c, pos, c.total_time - leader_time, interval))
+    return rows
 
 
 def _retire(car, lap, old_total, lap_time, time_lost):
@@ -465,20 +490,41 @@ def _run_start(cars):
     return events
 
 
-def _tyre_penalty(car, track):
-    """The per-lap time cost of the current tyres, as a function of stint length.
+def _warmup_penalty(stint_lap, compound):
+    """Per-lap cost of cold tyres at the START of a stint, fading over WARMUP_LAPS.
+    Biggest on the out-lap (stint_lap == 1), zero once they're in their window.
+    Scaled by the compound's warmup trait -- hards take longest to switch on."""
+    cold = 1.0 - (stint_lap - 1) / WARMUP_LAPS          # 1.0 on the out-lap, fading to 0
+    if cold <= 0.0:
+        return 0.0
+    return WARMUP_MAX * compound.warmup * cold
 
-    A steady linear bleed plus a small quadratic 'cliff' late in the stint, scaled
-    by the COMPOUND's wear rate, the track's abrasiveness, and softened by the
-    driver's tyre management. This is the wear equivalent of `car.damage`: a number
-    that taxes the lap and that a pit stop wipes back to zero.
+
+def _warmup_sum(n, compound):
+    """Total warmup cost over a fresh stint of n laps -- the planner's closed form of
+    _warmup_penalty summed lap by lap, so a plan is costed the way it's raced."""
+    m = min(n, WARMUP_LAPS)                             # only the first WARMUP_LAPS laps are cold
+    laps_cost = m - m * (m - 1) / (2 * WARMUP_LAPS)     # Sum of (1 - (s-1)/WARMUP_LAPS), s=1..m
+    return WARMUP_MAX * compound.warmup * laps_cost
+
+
+def _tyre_penalty(car, track):
+    """The per-lap time cost of the current tyres: WEAR (grows with the stint) plus
+    WARMUP (a cold-tyre penalty at the start of a stint that fades over a few laps).
+
+    Wear is a steady linear bleed plus a quadratic 'cliff', scaled by the compound,
+    the track's abrasiveness, and the driver's tyre management. Warmup is a separate,
+    front-loaded cost scaled by the compound's warmup trait -- and it applies only to
+    sets fitted at a pit stop, since the START tyres are warmed on the formation lap.
     """
     s = car.stint_laps
-    penalty = TYRE_LINEAR * s + TYRE_QUAD * s * s
-    penalty *= car.compound.wear                            # soft wears fast, hard slow
-    penalty *= track.tyre_wear                              # abrasive tracks chew tyres
-    penalty *= 1.0 - (car.driver.tire_management - 0.5) * TYRE_MGMT_SWING
-    return max(0.0, penalty)
+    wear = TYRE_LINEAR * s + TYRE_QUAD * s * s
+    wear *= car.compound.wear                              # soft wears fast, hard slow
+    wear *= track.tyre_wear                                # abrasive tracks chew tyres
+    wear *= 1.0 - (car.driver.tire_management - 0.5) * TYRE_MGMT_SWING
+    wear = max(0.0, wear)
+    warm = _warmup_penalty(s, car.compound) if car.pit_count > 0 else 0.0
+    return wear + warm
 
 
 def _plan_strategy(driver, track, laps):
@@ -497,26 +543,32 @@ def _plan_strategy(driver, track, laps):
     w = track.tyre_wear * (1.0 - (driver.tire_management - 0.5) * TYRE_MGMT_SWING)
 
     # Precompute the cost of running each compound for n laps (variable time only:
-    # grip + wear; the constant base lap is identical across plans, so it drops out).
-    cost = {}
+    # grip + wear; the constant base lap is identical across plans, so it drops out),
+    # plus the WARMUP cost of starting a fresh stint on it (paid after every stop).
+    cost, warm = {}, {}
     for c in COMPOUNDS:
         arr = [0.0] * (laps + 1)
+        warr = [0.0] * (laps + 1)
         for n in range(1, laps + 1):
             sum_s = n * (n + 1) / 2
             sum_s2 = n * (n + 1) * (2 * n + 1) / 6
             arr[n] = c.grip * n + c.wear * w * (TYRE_LINEAR * sum_s + TYRE_QUAD * sum_s2)
+            warr[n] = _warmup_sum(n, c)
         cost[c.name] = arr
+        warm[c.name] = warr
 
     structures = []   # (best_cost, RacePlan)
 
-    # One-stop: two distinct compounds; scan where to split the race.
+    # One-stop: two distinct compounds; scan where to split the race. The opening
+    # stint is warmed on the formation lap (no warmup); the post-stop stint pays it.
     for c1 in COMPOUNDS:
         for c2 in COMPOUNDS:
             if c1 is c2:
                 continue
             best = None
             for a in range(1, laps):
-                total = cost[c1.name][a] + cost[c2.name][laps - a] + PIT_LOSS
+                total = (cost[c1.name][a]
+                         + cost[c2.name][laps - a] + warm[c2.name][laps - a] + PIT_LOSS)
                 if best is None or total < best[0]:
                     best = (total, [a])
             structures.append((best[0], RacePlan([c1, c2], best[1])))
@@ -532,7 +584,10 @@ def _plan_strategy(driver, track, laps):
                     for a in range(1, laps - 1):
                         ca = cost[c1.name][a]
                         for b in range(a + 1, laps):
-                            total = ca + cost[c2.name][b - a] + cost[c3.name][laps - b] + 2 * PIT_LOSS
+                            total = (ca
+                                     + cost[c2.name][b - a] + warm[c2.name][b - a]
+                                     + cost[c3.name][laps - b] + warm[c3.name][laps - b]
+                                     + 2 * PIT_LOSS)
                             if best is None or total < best[0]:
                                 best = (total, [a, b])
                     structures.append((best[0], RacePlan([c1, c2, c3], best[1])))
@@ -616,6 +671,7 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
             tyre = _tyre_penalty(car, track)
             grip = car.compound.grip
             lap_time = simulate_lap(car.driver, track) + car.damage + tyre + grip  # damage AND tyres tax the lap
+            car.last_clean_lap = lap_time   # the honest pace lap -- captured BEFORE traffic/pit/incident muddy it
             time_lost = 0.0
 
             # 0. Hopeless racecraft: the inevitable, race-ending error finally arrives
@@ -742,15 +798,6 @@ class RaceSummary:
     undercuts_count: int = 0   # passes completed in the pit lane (the undercut)
 
 
-# A "flying lap" worth calling the fastest is one close to the track's clean lap.
-# Defining the band RELATIVE to base_lap_time is the whole point: a fixed seconds
-# window broke the moment lap times started scaling per circuit (Spa's ~105s laps
-# fell off the top, Monaco's ~73s off the bottom). Pit in-laps (+PIT_LOSS) and
-# incident laps land well outside this band, so the quickest in-band lap is real.
-FASTLAP_MIN = 0.90      # nothing genuine is quicker than 90% of a clean lap
-FASTLAP_MAX = 1.12      # slower than this is traffic or a stop, not a flyer
-
-
 UNDERCUT_WINDOW = 6     # the rival must stop within this many laps for the move to count
 UNDERCUT_CLOSE = 2.5    # how close behind (seconds) the undercutter was -- a real fight, not a fluke
 UNDERCUT_STICK = 3      # the move must still hold this many laps later (or to the flag)
@@ -843,18 +890,17 @@ def summarize_race(history, track):
             lead_changes += 1
             prev_leader = leader
 
-    # Fastest lap. APPROXIMATE: the engine folds traffic (dirty air, being held
-    # up) into last_lap, so this is the best clean-ish lap seen, not a true
-    # isolated flyer. A proper version means recording each car's raw pace lap
-    # separately in run_race -- a good, well-contained future tweak. The band is
-    # relative to this track's clean lap (see FASTLAP_MIN/MAX) so it scales per circuit.
-    lo = track.base_lap_time * FASTLAP_MIN
-    hi = track.base_lap_time * FASTLAP_MAX
+    # Fastest lap, read straight off the HONEST pace lap (clean_lap). Because
+    # clean_lap already excludes traffic, pit, and incident time, this no longer
+    # needs the old relative band that worked around a polluted last_lap. We skip
+    # lap 1 -- the standing-start scramble isn't a representative flyer.
     fl_driver, fl_time = "", float("inf")
     for rep in history:
+        if rep.lap == 1:
+            continue
         for s in rep.standings:
-            if not s.retired and lo < s.last_lap < hi and s.last_lap < fl_time:
-                fl_time, fl_driver = s.last_lap, s.name
+            if not s.retired and 0 < s.clean_lap < fl_time:
+                fl_time, fl_driver = s.clean_lap, s.name
     if not fl_driver:
         fl_time = 0.0
 
