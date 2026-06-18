@@ -22,8 +22,12 @@ so an overtake Bit is the REACTION to the move, never a re-call of it.
 
 import random
 
+from drivers import GRID
 from lore import (DRIVER_LORE, PAIR_LORE, TEAM_LORE, TRACK_LORE,
-                  DRIVER_TRACK_LORE, GENERIC)
+                  DRIVER_TRACK_LORE, GENERIC, Bit, banter,
+                  PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK)
+
+_DRIVER_BY_NAME = {d.name: d for d in GRID}
 
 
 # Who's in the booth. Roles -> names. Change these two strings and the whole feed
@@ -35,11 +39,43 @@ PERSONAS = {
 _TAG_WIDTH = max(len(n) for n in PERSONAS.values()) + 1   # room for the colon
 
 
+def _speaker(role):
+    """A role maps to a persona name; anything else (e.g. a driver's name in a
+    podium quote) is taken as a literal speaker label."""
+    return PERSONAS.get(role, role)
+
+
 def voice(lap, role, text):
-    """One feed line, stamped with its speaker -- so the feed reads as a transcript.
-    The speaker label is what tells the two voices apart; there's no '>>' marker."""
-    tag = PERSONAS.get(role, "?").upper() + ":"
+    """One in-race feed line, stamped with its speaker -- so the feed reads as a
+    transcript. The speaker label is what tells the voices apart; no '>>' marker."""
+    tag = _speaker(role).upper() + ":"
     return f"  L{lap:>2}  {tag:<{_TAG_WIDTH}} {text}"
+
+
+def voice_show(role, text):
+    """A line in a pre/post-race SHOW -- same speaker stamp, but no lap number, since
+    the shows happen off the clock (before lights-out / after the flag)."""
+    tag = _speaker(role).upper() + ":"
+    return f"  {tag:<{_TAG_WIDTH}} {text}"
+
+
+# Spoken-friendly number words -- the shows and the run-in say "five laps to go",
+# not "5", so the feed stays clean prose a text-to-speech engine can read aloud.
+_CARDINAL = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+             6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+_ORDINAL = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth",
+            6: "sixth", 7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth",
+            11: "eleventh", 12: "twelfth", 13: "thirteenth", 14: "fourteenth",
+            15: "fifteenth", 16: "sixteenth", 17: "seventeenth", 18: "eighteenth",
+            19: "nineteenth", 20: "twentieth"}
+
+
+def _spell(n):
+    return _CARDINAL.get(n, str(n))
+
+
+def _ord(n):
+    return _ORDINAL.get(n, f"{n}th")
 
 
 # How often an ORDINARY pass (no authored rivalry) earns a line about the passer.
@@ -52,6 +88,44 @@ PLAIN_OVERTAKE_COLOUR = 0.35
 # paces the backstory filler.
 LULL_COOLDOWN = 4
 
+# The closing laps get their OWN register: the booth builds tension toward the flag
+# whether or not anything is happening, so the run-in never goes quiet. These lines
+# are GENERATED from race state (laps left, the gap), so unlike the authored lull
+# pool they can never run dry, and they escalate as the laps tick down.
+RUNIN_LAPS = 6
+
+# Run-in phrasings by how close the fight for the lead is. {count} is the spoken
+# countdown ("Five laps to go"), {ldr}/{sec} the leader and chaser. Several per
+# bucket, and the booth avoids using the same one twice in a row (see _fresh_runin).
+_RUNIN = {
+    "close": {      # the lead is under real threat -- a nail-biter
+        "pbp": ["{count} -- and {sec} is ALL OVER the back of {ldr}!",
+                "{count}, and this is on a knife edge -- {sec} right with {ldr}!",
+                "{count}, and {sec} has thrown everything at {ldr} -- this is for the win!"],
+        "colour": ["He can see him in the mirrors now. This is going to be desperate.",
+                   "One lock-up, one twitch, and it's gone. Edge of your seat.",
+                   "Everything on the line here. Nobody is sitting down for this."],
+    },
+    "closing": {    # the gap is coming down, but maybe not in time
+        "pbp": ["{count} -- {sec} closing on {ldr}, but is there enough road left?!",
+                "{count}, and the gap is coming DOWN -- {ldr} will not want to see this!",
+                "{count} -- {ldr} still ahead, but {sec} can smell it now!"],
+        "colour": ["Tyres gone off, maybe. Whatever it is, that lead's not safe.",
+                   "A few laps ago you'd have called it done. Not any more.",
+                   "This could run all the way to the line, you know."],
+    },
+    "clear": {      # a comfortable lead -- but the occasion still lifts the crowd
+        "pbp": ["{count}, and {ldr} looks to have this in hand -- but LISTEN to that crowd!",
+                "{count} -- {ldr} out on their own up front, and the grandstands are already up!",
+                "{count}, and {ldr} is sailing toward it -- the whole place rising to its feet!",
+                "{count} -- daylight for {ldr}, and you can hear the roar building already!"],
+        "colour": ["Doesn't matter who's where. You stand and applaud a drive like that.",
+                   "Procession or not, that's history happening out front. Up they get.",
+                   "They know exactly what they're watching. Whole place on its feet.",
+                   "Win like this and the ovation's a formality. Listen to them."],
+    },
+}
+
 
 class Booth:
     """One per race. Holds the circuit and the memory of which Bits it has used."""
@@ -60,6 +134,7 @@ class Booth:
         self.circuit = track.circuit if track else ""
         self.used = set()
         self._last_lull_lap = -LULL_COOLDOWN       # so the first quiet lap can speak
+        self._last_runin = {}                       # (bucket, role) -> last template index used
 
     def _pick(self, bits, tags):
         """Keep Bits whose trigger is in `tags` and that we haven't used, then choose
@@ -147,3 +222,212 @@ class Booth:
         if bit:
             self._last_lull_lap = lap
         return bit
+
+    # --- the run to the flag: keep the crowd alive no matter what -----------
+    def for_runin(self, standings, lap, total_laps):
+        """The closing laps. Build the tension from the live race state -- how many
+        laps remain and how big the lead is -- so the run-in is always lively and
+        never repeats stale lines. A nail-biter and a procession get different
+        words, but BOTH end with the crowd on their feet (that's the whole point:
+        the audience should want to stand up whoever wins)."""
+        to_go = total_laps - lap
+        if not 1 <= to_go <= RUNIN_LAPS:
+            return None
+        running = [s for s in standings if not s.retired]
+        if not running:
+            return None
+        leader = running[0]
+        second = running[1] if len(running) > 1 else None
+        margin = second.gap_to_leader if second else None
+
+        if second is not None and margin is not None and margin < 1.2:
+            bucket = "close"
+        elif second is not None and margin is not None and margin < 4.0:
+            bucket = "closing"
+        else:
+            bucket = "clear"
+
+        count = f"{_spell(to_go).capitalize()} {'lap' if to_go == 1 else 'laps'} to go"
+        fmt = {"count": count, "ldr": leader.name, "sec": second.name if second else ""}
+        vale = self._fresh_runin(bucket, "pbp").format(**fmt)
+        benny = self._fresh_runin(bucket, "colour").format(**fmt)
+        return banter([("pbp", vale), ("colour", benny)])
+
+    def _fresh_runin(self, bucket, role):
+        """Pick a run-in template, never the same one twice running for this bucket
+        and speaker -- so a long procession doesn't echo the same line every lap."""
+        options = _RUNIN[bucket][role]
+        last = self._last_runin.get((bucket, role))
+        pool = [i for i in range(len(options)) if i != last] or list(range(len(options)))
+        i = random.choice(pool)
+        self._last_runin[(bucket, role)] = i
+        return options[i]
+
+    def for_finish(self, standings):
+        """The flag. The winner's moment, always called -- a race never ends on
+        silence."""
+        running = [s for s in standings if not s.retired]
+        if not running:
+            return None
+        w = running[0]
+        vale = random.choice([
+            f"{w.name} takes the chequered flag -- WINS the Grand Prix!",
+            f"It's {w.name}! Across the line to take it -- what a result for {w.team}!",
+        ])
+        benny = random.choice([
+            "Get up out of your seats. That is how you win a motor race.",
+            "Brilliant. Argue about the philosophy later -- right now, just applaud.",
+            "Deserved every inch of that. Cracking drive.",
+        ])
+        return banter([("pbp", vale), ("colour", benny)])
+
+    # --- the shows: off-clock segments before and after the race ------------
+    def preview(self, quali, track):
+        """The 'Countdown to Green': set the scene, the track's history, the top of
+        the grid, and what to watch. Returns a list of (role, line) turns the show
+        plays in order. Generated from the qualifying result and the track's own
+        numbers, so it's always accurate to THIS weekend."""
+        qualifiers = [d for d, lap, ok in quali if ok]
+        turns = [("pbp", f"Welcome to {track.circuit} -- we are set for the {track.name}.")]
+
+        hist = self._pick(TRACK_LORE.get(self.circuit, []), {"any"})
+        if hist:
+            turns.extend(hist.turns)
+
+        if qualifiers:
+            pole = qualifiers[0]
+            if len(qualifiers) > 1:
+                turns.append(("pbp", f"Pole position goes to {pole.name} for {pole.team}, "
+                                     f"{qualifiers[1].name} alongside on the front row."))
+            else:
+                turns.append(("pbp", f"Pole position: {pole.name} for {pole.team}."))
+            turns.append(("colour", self._pole_read(pole)))
+            watch = self._watch_name(qualifiers)
+            if watch:
+                turns.append(("colour", watch))
+
+        turns.append(("pbp", "So what are we watching for, Benny?"))
+        turns.append(("colour", self._track_tips(track)))
+        turns.append(("pbp", "Lights out is moments away. Stand by."))
+        return turns
+
+    def debrief(self, summary, history, track):
+        """The post-race show: how it was won, where strategy turned, the drive of
+        the day, the casualties, and quick quotes from the podium. Returns a list of
+        (role, line) turns -- with the podium lines spoken by the DRIVERS themselves."""
+        s = summary
+        turns = [("pbp", f"And that's the chequered flag at {s.circuit} -- "
+                         f"{s.winner} wins it for {s.team}!")]
+
+        # How it was won.
+        if s.winner_from == 1 and s.lead_changes == 0:
+            turns.append(("colour", f"Lights to flag, never troubled. {s.winner} made that look "
+                                    f"easy, and it never is."))
+        elif s.winner_from == 1:
+            turns.append(("colour", "Started on pole, but had to fight for it -- lead changed hands "
+                                    "out there. A proper race."))
+        else:
+            turns.append(("colour", f"From {_ord(s.winner_from)} on the grid! That's not luck, "
+                                    f"that's a drive."))
+
+        # Where strategy turned.
+        if s.undercuts_count:
+            turns.append(("pbp", "And strategy played its part?"))
+            turns.append(("colour", f"The undercut was the weapon today -- {_spell(s.undercuts_count)} "
+                                    f"of them paid off in the pit lane. Won and lost on the timing "
+                                    f"screen, not on the road."))
+        elif s.lead_changes >= 3:
+            turns.append(("colour", "Won on track, this one -- wheel to wheel, none of your "
+                                    "pit-lane chess. Loved it."))
+
+        # The drive of the day.
+        if s.drive_of_the_day:
+            name, gained = s.drive_of_the_day
+            turns.append(("pbp", "Drive of the day?"))
+            turns.append(("colour", f"Has to be {name} -- up {_spell(gained)} place"
+                                    f"{'s' if gained != 1 else ''} from the start. Carved clean "
+                                    f"through the lot of them."))
+
+        # Where it went wrong.
+        if s.double_dnfs:
+            a, b, _lap, _loc = s.double_dnfs[0]
+            turns.append(("colour", f"And spare a thought for {a} and {b} -- took each other clean "
+                                    f"out. That's where it all went wrong for two of them."))
+        elif s.retirements:
+            turns.append(("colour", f"{s.retirements[0][0]}'s afternoon ended early, too. The race "
+                                    f"doesn't forgive much out there."))
+
+        # Quick quotes from the podium -- the drivers speak for themselves.
+        podium = s.podium[:3]
+        if podium:
+            turns.append(("pbp", "Let's hear from the podium."))
+            for pos, name, _team in podium:
+                quote = self._podium_quote(name)
+                if not quote:
+                    continue
+                if pos == 1:
+                    turns.append(("pbp", f"{name} -- a worthy winner. Your race?"))
+                else:
+                    turns.append(("pbp", f"{name}, {_ord(pos)} today -- your afternoon?"))
+                turns.append((name, quote))            # role = the driver's own name
+
+        # Sign-off.
+        turns.append(("pbp", f"From {s.circuit}, that's all from us. Goodnight!"))
+        turns.append(("colour", random.choice([
+            "Same again next week, when this lot will once more agree on absolutely nothing.",
+            "Drive home safe. Unlike that lot.",
+        ])))
+        return turns
+
+    # --- show helpers -------------------------------------------------------
+    def _pole_read(self, d):
+        """Benny's one-line read on the pole-sitter, from their stat line."""
+        if d.strategy < 0.35:
+            return (f"Quick as anything over one lap, {d.name} -- but the head for a race? "
+                    f"We'll see. Could come back to bite.")
+        if d.racecraft >= 0.78:
+            return f"And {d.name} can race as well as qualify -- long afternoon for the rest, this."
+        if d.tire_management >= 0.78:
+            return f"{d.name} on pole AND gentle on the tyres -- track position and tyre life? That's the dream."
+        return f"{d.name} starts where everyone wants to be. Now they have to keep it."
+
+    def _watch_name(self, qualifiers):
+        """A name to watch from outside the top five -- a buried strategist or a
+        charger who won't stay put."""
+        back = qualifiers[5:]
+        if not back:
+            return None
+        strat = max(back, key=lambda d: d.strategy)
+        if strat.strategy >= 0.7:
+            return (f"And keep an eye on {strat.name}, starting {_ord(qualifiers.index(strat) + 1)} "
+                    f"-- best strategic mind on this grid. Don't be surprised to see them carve through.")
+        charger = max(back, key=lambda d: d.racecraft)
+        if charger.racecraft >= 0.78:
+            return (f"{charger.name} down in {_ord(qualifiers.index(charger) + 1)} won't last long there "
+                    f"-- that one does not believe in holding position.")
+        return None
+
+    def _track_tips(self, track):
+        """What to watch, generated from the track's own numbers so it stays true if
+        you retune the circuit."""
+        tips = []
+        d = track.overtaking_difficulty
+        if d >= 0.30:
+            tips.append("passing here is brutal, so track position off the line is everything -- "
+                        "get the start wrong and your Sunday's done")
+        elif d <= 0.06:
+            tips.append("they'll be streaming past all afternoon down these straights -- slipstream city")
+        else:
+            tips.append("a fair test for overtaking -- you can make a move stick if you're brave")
+        w = track.tyre_wear
+        if w >= 1.2:
+            tips.append("and the tyres take an absolute hammering -- this is a strategist's race")
+        elif w <= 0.6:
+            tips.append("and the tyres last forever, so expect them flat out from lights to flag")
+        return ("Well -- " + "; ".join(tips)
+                + ". And as ever, don't get attached to the Objectivism car: "
+                  "Rand and Stirner never see the flag.")
+
+    def _podium_quote(self, name):
+        pool = PODIUM_QUOTES.get(name) or PODIUM_QUOTE_FALLBACK
+        return random.choice(pool) if pool else None

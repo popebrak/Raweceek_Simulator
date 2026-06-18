@@ -17,7 +17,7 @@ from simulation import run_qualifying, run_race, summarize_race
 from display import (print_timing_sheet, render_standings, render_commentary,
                      render_overtake, render_telemetry, render_result,
                      render_summary, track_banner, render_pit, render_undercut)
-from colour import Booth, voice
+from colour import Booth, voice, voice_show
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
@@ -48,10 +48,11 @@ def _overtake_worth(ov, notable_pos):
     return ov.position <= min(notable_pos, POINTS_POSITIONS)
 
 
-def play_race(history, speed, track=None, show_telemetry=False):
+def play_race(history, speed, track=None, show_telemetry=False, booth=None):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
-    booth = Booth(track)                           # the two voices: Vale (calls) & Benny (colour)
+    if booth is None:                              # the two voices: Vale (calls) & Benny (colour)
+        booth = Booth(track)                       # shared with the pre/post-race shows when passed in
 
     # Which passes are worth a call depends on the circuit. Where passing is hard
     # (Monaco, Suzuka) even a midfield move is an event, so we call deeper into the
@@ -117,6 +118,13 @@ def play_race(history, speed, track=None, show_telemetry=False):
         for uc in report.undercuts:
             say("pbp", _call(render_undercut(uc)))
 
+        # The flag: on the final lap the winner's moment always gets called, AFTER
+        # whatever else happened, so the race never ends on silence.
+        if report.lap == total_laps:
+            fin = booth.for_finish(report.standings)
+            if fin:
+                play(fin)
+
         if new_lines:
             # Tick the new calls in one at a time, spread across the lap, so the
             # feed reads live. Total time still equals one lap.
@@ -126,9 +134,11 @@ def play_race(history, speed, track=None, show_telemetry=False):
                 draw(report)
                 time.sleep(slice_time)
         else:
-            # A quiet green-flag lap -- exactly where a real booth fills the air with
-            # backstory and banter. Ask the pair for a Bit; play whatever they've got.
-            bit = booth.for_lull(report.standings, report.lap, total_laps)
+            # A quiet lap. In the closing laps the booth builds the run-in tension
+            # regardless (generated from the gap and laps left, so it never runs dry);
+            # earlier on, it fills with backstory and banter. Either way it speaks.
+            bit = (booth.for_runin(report.standings, report.lap, total_laps)
+                   or booth.for_lull(report.standings, report.lap, total_laps))
             if bit:
                 for role, line in bit.turns:
                     commentary.append(voice(report.lap, role, line))
@@ -141,8 +151,18 @@ def play_race(history, speed, track=None, show_telemetry=False):
     print(render_summary(summarize_race(history, track)))
 
 
+def _play_show(turns, pace):
+    """Play a pre/post-race show segment as paced dialogue -- each line printed in
+    turn with a short beat between, so it reads like a broadcast rather than a dump.
+    No lap tags (voice_show); the shows happen off the clock."""
+    for role, line in turns:
+        print(voice_show(role, line))
+        sys.stdout.flush()
+        time.sleep(pace)
+
+
 def run_weekend(track=None, speed=20.0, grid_pause=5.0, show_telemetry=False,
-                laps=None, difficulty=None):
+                laps=None, difficulty=None, show_pace=1.0):
     # Pick a circuit (by name, by object, or at random) -- the track decides the
     # race distance and how hard it is to pass.
     if track is None:
@@ -154,13 +174,27 @@ def run_weekend(track=None, speed=20.0, grid_pause=5.0, show_telemetry=False,
     quali_results = run_qualifying(GRID, track)
     print_timing_sheet(quali_results)
 
+    # One booth for the whole weekend -- the shows and the race share its memory, so
+    # the track history set up in the preview isn't repeated mid-race.
+    booth = Booth(track)
+
+    # The pre-race show: history, the top of the grid, what to watch.
+    print(DIVIDER)
+    print("  COUNTDOWN TO GREEN")
+    _play_show(booth.preview(quali_results, track), show_pace)
+
     starting_grid = [driver for driver, lap, qualified in quali_results if qualified]
     history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
 
-    # Let the qualifying sheet breathe before the race starts.
     print("\n  Lights out -- here we go!\n")
     time.sleep(grid_pause)
-    play_race(history, speed=speed, track=track, show_telemetry=show_telemetry)
+    play_race(history, speed=speed, track=track, show_telemetry=show_telemetry, booth=booth)
+
+    # The post-race show: how it was won, where strategy turned, words from the podium.
+    print()
+    print(DIVIDER)
+    print("  POST-RACE SHOW")
+    _play_show(booth.debrief(summarize_race(history, track), history, track), show_pace)
 
 
 if __name__ == "__main__":

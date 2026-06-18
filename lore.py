@@ -331,3 +331,33 @@ GENERIC = [
             ("colour", "Remarkable, yeah. Couldn't organise a pit stop between the lot of them, but remarkable.")], when="any"),
     quip("Every driver out here once told the others they were dead wrong. Nice they've finally got somewhere to settle it that isn't a footnote.", when="any"),
 ]
+
+
+# --- Post-race podium quotes -- the DRIVERS speak, each in their own voice ----
+# Used by the post-race show: the booth throws to the podium, and each finisher
+# delivers a line that is unmistakably them. Keyed by name; missing names fall back.
+PODIUM_QUOTES = {
+    "Plato": ["The perfect race exists in a higher realm. Today I drove its shadow -- and the shadow was enough."],
+    "Diogenes": ["I now own a barrel and a trophy. I shall be keeping the barrel."],
+    "Karl Marx": ["The history of all racing is the history of strategy. Today, the strategy was correct."],
+    "Rosa Luxemburg": ["I followed no master plan. The moment told me when to strike, and I listened."],
+    "Mikhail Bakunin": ["I dismantled the field. The urge to destroy, as I have always said, is a creative one."],
+    "Emma Goldman": ["If I cannot dance on the podium, I do not want it. ...I will, however, take the trophy."],
+    "Friedrich Nietzsche": ["That which does not overtake me makes me stronger. I overtook all of them."],
+    "Simone de Beauvoir": ["One is not born a winner. One becomes one -- braking point by braking point."],
+    "Niccolò Machiavelli": ["It is better to be feared on the pit wall than loved. They feared my strategy, and rightly."],
+    "Richard Rorty": ["There is no deep truth about who deserved this. There is only the timing screen, and I am atop it."],
+    "Theodor Adorno": ["A victory under these conditions merely flatters the spectacle. ...It was, nonetheless, delightful."],
+    "Herbert Marcuse": ["I refused to lift. The Great Refusal -- performed at two hundred miles an hour."],
+    "Michel Foucault": ["Every driver out there was disciplined by the circuit. I disciplined the circuit."],
+    "Jacques Derrida": ["There is no outside-the-podium. There is also, strictly, no podium. I won it regardless."],
+    "Frantz Fanon": ["They built this sport to keep us out. Today the grid belonged to the excluded."],
+    "Aimé Césaire": ["I gave a generation its words. Today I gave them the fastest lap as well."],
+    "Thomas Paine": ["These are the laps that try drivers' souls. Plain courage won out, as it tends to."],
+    "Mary Wollstonecraft": ["Let the record show: reason, not force, took this victory."],
+}
+
+PODIUM_QUOTE_FALLBACK = [
+    "A good day's work. The arguments can wait until tomorrow.",
+    "I will let the result speak. It is more eloquent than I am.",
+]
