@@ -11,7 +11,7 @@ know WHICH text-to-speech is in use. The first backend shells out to espeak / es
 later (Piper, a cloud API) means writing one more Narrator subclass and changing
 nothing in the race or the booth.
 
-Two personas, two voices: PHILL the lap-caller sits a touch higher and quicker (the
+Two personas, two voices: VALE the lap-caller sits a touch higher and quicker (the
 excitable one); BENNY the colour man sits lower and slower (the dry one). The contrast
 is about all espeak can give us, but it's enough to tell them apart. Anyone else who
 speaks -- a driver on the podium -- gets a third, plainer voice.
@@ -428,8 +428,30 @@ class ChatterboxNarrator(Narrator):
 
     def _ensure_model(self):
         if self._model is None:
+            self._neutralise_watermarker()
             self._model = self._cls.from_pretrained(device=self.device)
         return self._model
+
+    @staticmethod
+    def _neutralise_watermarker():
+        """Chatterbox calls `perth.PerthImplicitWatermarker()` while loading the model.
+        That watermarker is a fragile optional dependency: if perth's own internal
+        import fails it silently becomes None, and constructing it then takes the whole
+        load down with 'NoneType' object is not callable. The watermark is just an
+        inaudible provenance stamp we don't need for local playback, so when it's
+        unavailable we slot in a no-op and let the model load regardless. (No effect on
+        the other backends -- this only runs on the chatterbox load path.)"""
+        try:
+            import perth
+        except Exception:
+            return                                  # perth absent entirely -- let load proceed/fail as it would
+        if getattr(perth, "PerthImplicitWatermarker", None) is None:
+            class _NoWatermark:
+                def apply_watermark(self, wav, *args, **kwargs):
+                    return wav                      # return the audio untouched
+                def get_watermark(self, *args, **kwargs):
+                    return 0.0                      # "no watermark present"
+            perth.PerthImplicitWatermarker = _NoWatermark
 
     def warm_up(self):
         """First run downloads the model (~1 GB) and loads it onto the GPU; both take a
