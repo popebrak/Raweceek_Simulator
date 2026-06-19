@@ -11,7 +11,7 @@ know WHICH text-to-speech is in use. The first backend shells out to espeak / es
 later (Piper, a cloud API) means writing one more Narrator subclass and changing
 nothing in the race or the booth.
 
-Two personas, two voices: VALE the lap-caller sits a touch higher and quicker (the
+Two personas, two voices: PHILL the lap-caller sits a touch higher and quicker (the
 excitable one); BENNY the colour man sits lower and slower (the dry one). The contrast
 is about all espeak can give us, but it's enough to tell them apart. Anyone else who
 speaks -- a driver on the podium -- gets a third, plainer voice.

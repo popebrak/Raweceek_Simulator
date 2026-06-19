@@ -37,7 +37,11 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   RECLASSIFICATION_CALLS, PENALTY_COLOUR,
                   # the podium interview
                   PODIUM_HANDOFF, PODIUM_QUESTIONS, PODIUM_CLOSER_Q,
-                  PODIUM_ANSWER_GENERIC, PODIUM_ANSWERS)
+                  PODIUM_ANSWER_GENERIC, PODIUM_ANSWERS,
+                  # the Countdown to Green -- pooled phrasings + the Objectivism gag
+                  PREVIEW_WELCOME, PREVIEW_POLE, PREVIEW_POLE_SOLO, PREVIEW_HANDOFF,
+                  PREVIEW_STANDBY, POLE_READ, TRACK_TIP_OPENER, TRACK_TIP_PASS,
+                  TRACK_TIP_TYRE, OBJECTIVISM_PREVIEW, WATCH_STRATEGIST, WATCH_CHARGER)
 
 _DRIVER_BY_NAME = {d.name: d for d in GRID}
 
@@ -574,9 +578,9 @@ class Booth:
 
         count = f"{_spell(to_go).capitalize()} {'lap' if to_go == 1 else 'laps'} to go"
         fmt = {"count": count, "ldr": leader.name, "sec": second.name if second else ""}
-        vale = self._fresh_runin(bucket, "pbp").format(**fmt)
+        phill = self._fresh_runin(bucket, "pbp").format(**fmt)
         benny = self._fresh_runin(bucket, "colour").format(**fmt)
-        return banter([("pbp", vale), ("colour", benny)])
+        return banter([("pbp", phill), ("colour", benny)])
 
     def _fresh_runin(self, bucket, role):
         """Pick a run-in template, never the same one twice running for this bucket
@@ -596,7 +600,7 @@ class Booth:
         if not running:
             return None
         w = running[0]
-        vale = self._fresh("_finish_pbp", [
+        phill = self._fresh("_finish_pbp", [
             f"{w.name} takes the chequered flag -- WINS the Grand Prix!",
             f"It's {w.name}! Across the line to take it -- what a result for {w.team}!",
             f"The flag is OUT, and {w.name} has WON it -- a famous day for {w.team}!",
@@ -613,7 +617,7 @@ class Booth:
             "Flawless when it mattered. That's a winner's afternoon, start to finish.",
             "They thought, they drove, they won. In that order. Lovely to watch.",
         ])
-        return banter([("pbp", vale), ("colour", benny)])
+        return banter([("pbp", phill), ("colour", benny)])
 
     def _fresh(self, key, options):
         """Pick from `options`, avoiding the index used last time for this key -- the
@@ -674,10 +678,14 @@ class Booth:
     def preview(self, quali, track):
         """The 'Countdown to Green': set the scene, the track's history, the top of
         the grid, and what to watch. Returns a list of (role, line) turns the show
-        plays in order. Generated from the qualifying result and the track's own
-        numbers, so it's always accurate to THIS weekend."""
+        plays in order. Every beat is drawn FRESH from a pool (welcome, pole, the
+        hand-off, the stand-by), so the show no longer reads the same way twice -- and
+        the Objectivism car gets written off before a wheel turns, a different way each
+        race. Still generated from the qualifying result and the track's own numbers,
+        so it stays accurate to THIS weekend."""
         qualifiers = [d for d, lap, ok in quali if ok]
-        turns = [("pbp", f"Welcome to {track.circuit} -- we are set for the {track.name}.")]
+        turns = [("pbp", self._fresh("_prev_welcome", PREVIEW_WELCOME).format(
+            circuit=track.circuit, name=track.name))]
 
         hist = self._pick(TRACK_LORE.get(self.circuit, []), {"any"})
         if hist:
@@ -686,18 +694,23 @@ class Booth:
         if qualifiers:
             pole = qualifiers[0]
             if len(qualifiers) > 1:
-                turns.append(("pbp", f"Pole position goes to {pole.name} for {pole.team}, "
-                                     f"{qualifiers[1].name} alongside on the front row."))
+                turns.append(("pbp", self._fresh("_prev_pole", PREVIEW_POLE).format(
+                    pole=pole.name, team=pole.team, second=qualifiers[1].name)))
             else:
-                turns.append(("pbp", f"Pole position: {pole.name} for {pole.team}."))
+                turns.append(("pbp", self._fresh("_prev_pole_solo", PREVIEW_POLE_SOLO).format(
+                    pole=pole.name, team=pole.team)))
             turns.append(("colour", self._pole_read(pole)))
             watch = self._watch_name(qualifiers)
             if watch:
                 turns.append(("colour", watch))
 
-        turns.append(("pbp", "So what are we watching for, Benny?"))
+        # The running gag: write off the doomed Objectivism car before the lights even
+        # come on. Same joke every week, fresh wording every week.
+        turns.extend(random.choice(OBJECTIVISM_PREVIEW))
+
+        turns.append(("pbp", self._fresh("_prev_handoff", PREVIEW_HANDOFF)))
         turns.append(("colour", self._track_tips(track)))
-        turns.append(("pbp", "Lights out is moments away. Stand by."))
+        turns.append(("pbp", self._fresh("_prev_standby", PREVIEW_STANDBY)))
         return turns
 
     def debrief(self, summary, history, track):
@@ -767,52 +780,49 @@ class Booth:
 
     # --- show helpers -------------------------------------------------------
     def _pole_read(self, d):
-        """Benny's one-line read on the pole-sitter, from their stat line."""
+        """Benny's one-line read on the pole-sitter -- bucket by the stat line, then a
+        phrasing picked fresh from the pool, so the same kind of pole-sitter doesn't
+        always draw the same words."""
         if d.strategy < 0.35:
-            return (f"Quick as anything over one lap, {d.name} -- but the head for a race? "
-                    f"We'll see. Could come back to bite.")
-        if d.racecraft >= 0.78:
-            return f"And {d.name} can race as well as qualify -- long afternoon for the rest, this."
-        if d.tire_management >= 0.78:
-            return f"{d.name} on pole AND gentle on the tyres -- track position and tyre life? That's the dream."
-        return f"{d.name} starts where everyone wants to be. Now they have to keep it."
+            bucket = "quick_no_head"
+        elif d.racecraft >= 0.78:
+            bucket = "racer"
+        elif d.tire_management >= 0.78:
+            bucket = "tyre"
+        else:
+            bucket = "plain"
+        return self._fresh(f"_pole_{bucket}", POLE_READ[bucket]).format(name=d.name)
 
     def _watch_name(self, qualifiers):
         """A name to watch from outside the top five -- a buried strategist or a
-        charger who won't stay put."""
+        charger who won't stay put. Phrasing drawn fresh from a pool."""
         back = qualifiers[5:]
         if not back:
             return None
         strat = max(back, key=lambda d: d.strategy)
         if strat.strategy >= 0.7:
-            return (f"And keep an eye on {strat.name}, starting {_ord(qualifiers.index(strat) + 1)} "
-                    f"-- best strategic mind on this grid. Don't be surprised to see them carve through.")
+            return self._fresh("_watch_strat", WATCH_STRATEGIST).format(
+                name=strat.name, start_ord=_ord(qualifiers.index(strat) + 1))
         charger = max(back, key=lambda d: d.racecraft)
         if charger.racecraft >= 0.78:
-            return (f"{charger.name} down in {_ord(qualifiers.index(charger) + 1)} won't last long there "
-                    f"-- that one does not believe in holding position.")
+            return self._fresh("_watch_charger", WATCH_CHARGER).format(
+                name=charger.name, start_ord=_ord(qualifiers.index(charger) + 1))
         return None
 
     def _track_tips(self, track):
-        """What to watch, generated from the track's own numbers so it stays true if
-        you retune the circuit."""
-        tips = []
+        """What to watch, generated from the track's own numbers (so it stays true if
+        you retune the circuit) -- but the phrasing for each point is drawn fresh from a
+        pool, so the same circuit never reads its watch-points the same way twice. The
+        Objectivism write-off is no longer tacked on here; it's its own beat now."""
         d = track.overtaking_difficulty
-        if d >= 0.30:
-            tips.append("passing here is brutal, so track position off the line is everything -- "
-                        "get the start wrong and your Sunday's done")
-        elif d <= 0.06:
-            tips.append("they'll be streaming past all afternoon down these straights -- slipstream city")
-        else:
-            tips.append("a fair test for overtaking -- you can make a move stick if you're brave")
+        pass_bucket = "hard" if d >= 0.30 else "easy" if d <= 0.06 else "fair"
+        clauses = [self._fresh(f"_tip_pass_{pass_bucket}", TRACK_TIP_PASS[pass_bucket])]
         w = track.tyre_wear
         if w >= 1.2:
-            tips.append("and the tyres take an absolute hammering -- this is a strategist's race")
+            clauses.append(self._fresh("_tip_tyre_high", TRACK_TIP_TYRE["high"]))
         elif w <= 0.6:
-            tips.append("and the tyres last forever, so expect them flat out from lights to flag")
-        return ("Well -- " + "; ".join(tips)
-                + ". And as ever, don't get attached to the Objectivism car: "
-                  "Rand and Stirner never see the flag.")
+            clauses.append(self._fresh("_tip_tyre_low", TRACK_TIP_TYRE["low"]))
+        return random.choice(TRACK_TIP_OPENER) + "; ".join(clauses) + "."
 
     def _podium_quote(self, name):
         pool = PODIUM_QUOTES.get(name) or PODIUM_QUOTE_FALLBACK
