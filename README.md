@@ -26,7 +26,7 @@ does becomes something the booth can talk about.
   warm-up, pit strategy with tactical undercuts, launches, overtaking tuned per
   circuit, two-car collisions with component damage, and delayed mechanical DNFs.
 - **Weather** that can change mid-race and reshuffle everything.
-- **A commentary booth with two personas** — **Vale**, the excitable lap-caller, and
+- **A commentary booth with two personas** — **Phill**, the excitable lap-caller, and
   **Benny**, the dry ex-racer who thinks the philosophy is daft. They preview the grid,
   call the race live, build run-in tension in the closing laps, and debrief afterwards,
   with quotes from the philosophers on the podium.
@@ -54,14 +54,14 @@ does becomes something the booth can talk about.
 
   ------------------------------------------------------------
   COUNTDOWN TO GREEN
-  VALE:  Welcome to Monza -- we are set for the Italian Grand Prix.
+  PHILL:  Welcome to Monza -- we are set for the Italian Grand Prix.
   BENNY: Big tow, late on the brakes, tifosi screaming for red. Can't not love it.
-  VALE:  Pole position goes to Mikhail Bakunin for Black Banner, Michel Foucault alongside.
+  PHILL:  Pole position goes to Mikhail Bakunin for Black Banner, Michel Foucault alongside.
   BENNY: Quick over one lap -- but the head for a race? We'll see. Could come back to bite.
 
   ... [the race plays back live, lap by lap] ...
 
-  L11  VALE:  THE UNDERCUT WORKS! Thomas Paine boxed a lap earlier than Diogenes,
+  L11  PHILL:  THE UNDERCUT WORKS! Thomas Paine boxed a lap earlier than Diogenes,
               and the fresh rubber vaults them ahead into P6.
 
   FINAL CLASSIFICATION
@@ -73,12 +73,12 @@ does becomes something the booth can talk about.
   --  Ayn Rand              Objectivism     DNF (lap 1, from P13)
 
   POST-RACE SHOW
-  VALE:  And that's the chequered flag at Monza -- Michel Foucault wins it for Différance!
+  PHILL:  And that's the chequered flag at Monza -- Michel Foucault wins it for Différance!
   BENNY: From second on the grid! That's not luck, that's a drive.
-  VALE:  Let's hear from the podium.
+  PHILL:  Let's hear from the podium.
   MICHEL FOUCAULT: They were all being watched. I was the one who decided where to look.
   KARL MARX: The history of all racing is the history of strategy. Today, the strategy was correct.
-  VALE:  From Monza, that's all from us. Goodnight!
+  PHILL:  From Monza, that's all from us. Goodnight!
   BENNY: Drive home safe. Unlike that lot.
 ```
 
@@ -133,7 +133,7 @@ of any venv. The other three go through pip, inside your activated venv.
 ### Piper voices
 
 Piper needs voice packs (an `.onnx` model **plus** its `.onnx.json` config) in a
-`voices/` folder. Three voices give the booth Vale, Benny, and a podium voice:
+`voices/` folder. Three voices give the booth Phill, Benny, and a podium voice:
 
 ```bash
 cd voices
@@ -148,8 +148,7 @@ cd ..
 python main.py --voice piper --track Spa
 ```
 
-(No `wget`? use `curl -L -O <url>`.) Full voice catalogue and the role→voice map are in
-`voices/README.md`.
+(No `wget`? use `curl -L -O <url>`.)
 
 ### Kokoro
 
@@ -198,9 +197,13 @@ to set up, and it's a GPU model.
 
 - **VRAM:** Chatterbox wants ~5–7 GB. On a 6 GB card use the **Turbo** variant (the
   default here, ~4.5 GB); don't switch `CHATTERBOX_VARIANT` to `original`.
-- **Voices:** drop a clean ~10–30 s WAV per role into `refs/` as `vale.wav` and
-  `benny.wav`. No clips → both speakers use the built-in default voice. See
-  `refs/README.md`.
+- **Voices:** drop a clean ~10–30 s WAV per role into `refs/` as `phill.wav` and
+  `benny.wav`. No clips → both speakers use the built-in default voice.
+- **Watermarker:** Chatterbox normally stamps an inaudible Resemble "Perth" watermark on
+  its output. In a `uv` venv that component usually can't load (it imports `pkg_resources`,
+  which recent setuptools no longer ships), so `narration.py` quietly swaps in a no-op and
+  the model loads anyway. Nothing to install — the watermark simply isn't applied, which is
+  fine for local playback.
 - **Run it** (rendering to a file is the reliable path for a heavyweight model):
 
   ```bash
@@ -215,12 +218,12 @@ simulation.py   the engine: qualifying, race loop, strategy, analysis
 drivers.py      the 20-philosopher / 10-team grid (data)
 tracks.py       the circuit calendar (data)
 weather.py      conditions and changes (data)
-colour.py       the commentary booth -- Vale & Benny, the shows, the banter
+colour.py       the commentary booth -- Phill & Benny, the shows, the banter
 lore.py         the lines: track history, persona quips, podium quotes
 display.py      rendering: standings board, commentary feed, telemetry, results
 narration.py    the optional spoken layer -- espeak / piper / kokoro / chatterbox
-voices/         Piper voice packs live here (README inside)
-refs/           Chatterbox reference clips live here (README inside)
+voices/         Piper voice packs live here
+refs/           Chatterbox reference clips live here
 ```
 
 Architecture in one line: **the engine reasons, the data describes, the display speaks,
