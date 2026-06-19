@@ -102,8 +102,15 @@ SALIENCE_REIGNITION = 25      # a remembered fight coming back to life
 SALIENCE_PER_GAINED = 6       # a big launch off the line earns its call
 
 SAL_WEATHER = 120             # a weather call is the headline -- it leads the lap
-SAL_SAFETY_CAR = 130          # ...and a safety car is a bigger one still -- it leads everything
-SAL_RESTART = 110             # the green-flag restart -- a crescendo above the racing
+SAL_RED_FLAG = 140            # a stopped race -- the loudest call there is
+SAL_SAFETY_CAR = 130          # the safety car -- a bigger headline than the weather
+SAL_VSC = 100                 # the lighter full-course yellow
+SAL_RED_RESTART = 115         # a standing restart from the grid -- a second start
+SAL_RESTART = 110             # the rolling safety-car restart -- a crescendo above racing
+SAL_VSC_END = 95              # the VSC simply lifting -- a quieter resumption
+# Per-kind salience for deployment and resumption, so the right call leads the lap.
+SAL_DEPLOY = {"safety_car": SAL_SAFETY_CAR, "vsc": SAL_VSC, "red_flag": SAL_RED_FLAG}
+SAL_RESUME = {"safety_car": SAL_RESTART, "vsc": SAL_VSC_END, "red_flag": SAL_RED_RESTART}
 SAL_RETIREMENT = 90           # someone's race is over
 SAL_BATTLE_CONTACT = 85       # a tracked fight ends in contact
 SAL_UNDERCUT_SETTLE = 80      # an undercut settles a fight they couldn't win on track
@@ -245,18 +252,19 @@ class Director:
         return self._assemble(cands, report.lap)
 
     def _caution_candidates(self, report):
-        """The safety car as commentary: the deployment is the loudest headline on the
-        board, the restart a crescendo back to green. The crawl laps in between say
-        nothing here (the booth fills them from the quiet-lap path)."""
+        """A neutralisation as commentary: the deployment is the loudest headline on the
+        board (the red flag loudest of all), the resumption a crescendo back to green.
+        The crawl laps in between say nothing here (the booth fills them from the
+        quiet-lap path). Dispatched by kind to the right call."""
         c = getattr(report, "caution", None)
         if c is None:
             return []
         if c.status == "deploy":
-            beat = Beat(tuple(self.booth.call_safety_car(c).turns), 3, "caution")
-            return [Candidate(beat, SAL_SAFETY_CAR, mandatory=True)]
+            beat = Beat(tuple(self.booth.call_neutralisation(c).turns), 3, "caution")
+            return [Candidate(beat, SAL_DEPLOY.get(c.kind, SAL_SAFETY_CAR), mandatory=True)]
         if c.status == "restart":
-            beat = Beat(tuple(self.booth.call_restart(c).turns), 3, "caution")
-            return [Candidate(beat, SAL_RESTART, mandatory=True)]
+            beat = Beat(tuple(self.booth.call_resumption(c).turns), 3, "caution")
+            return [Candidate(beat, SAL_RESUME.get(c.kind, SAL_RESTART), mandatory=True)]
         return []
 
     def _assemble(self, cands, lap):

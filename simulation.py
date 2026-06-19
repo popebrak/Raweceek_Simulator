@@ -216,6 +216,29 @@ SC_TRIGGER_OVERLIMIT = 0.05   # an Objectivist binning it alone -- usually harml
 RESTART_SPREAD = 0.40    # gaussian sigma of the restart jostle, in seconds
 RESTART_SKILL = 0.5      # how much racecraft helps you time the restart
 RESTART_CAP = 1.0        # clamp, so nobody teleports up the order
+
+# --- VSC: the virtual safety car / full-course yellow ------------------------
+# The LIGHTER neutralisation, for a smaller incident (debris, a car stopped safely):
+# every lap is slowed by a fixed delta and overtaking is banned, but the GAPS ARE
+# PRESERVED -- no bunching -- and there's no rolling restart: when it lifts, racing
+# simply resumes. Far kinder to the leader, who keeps their hard-won cushion. Stops are
+# still cheap (the whole field is slow), so it's a smaller version of the same gamble.
+VSC_LAPS = 2             # laps under the delta before it lifts
+VSC_PACE_FACTOR = 1.22   # slower than green, quicker than the safety-car crawl
+VSC_TRIGGER = 0.12       # a solo retirement that doesn't warrant the full safety car
+VSC_TRIGGER_MINOR = 0.04 # debris from a big-but-survived moment, or a lone harmless off
+
+# --- Red flag: the race STOPPED ---------------------------------------------
+# The severest, rarest neutralisation, for a shunt big enough to block the track. The
+# field freezes and lines up on the grid in order (gaps erased), and -- the defining
+# strategic swing -- everyone may change tyres for FREE: a car yet to stop gets its
+# stop gratis, leapfrogging whoever already paid full price for theirs. Then a STANDING
+# restart, with all the launch chaos of the original start (_run_start's lottery).
+RED_LAPS = 1             # the stoppage itself (a standing restart follows next lap)
+RED_TRIGGER = 0.20       # chance a double-DNF collision is severe enough to stop the race
+
+# How many neutralised laps each kind runs before its restart/resumption.
+NEUT_LAPS = {"safety_car": SC_LAPS, "vsc": VSC_LAPS, "red_flag": RED_LAPS}
 # -----------------------------------------------------------------------------
 
 
@@ -944,6 +967,32 @@ def _restart_scramble(running):
         car.total_time += max(-RESTART_CAP, min(RESTART_CAP, jitter))
 
 
+def _red_flag_freeze(running, track):
+    """The race is STOPPED. Two things happen. First, the free tyre change: everyone may
+    bolt on fresh rubber gratis, and a car that still had a stop to make effectively gets
+    it for nothing -- leapfrogging anyone who already paid full price for theirs. Then the
+    field lines up on the grid in current order, gaps erased, ready for a standing
+    restart."""
+    for car in running:
+        if car.pit_count < len(car.plan.pit_laps):
+            car.pit_count += 1                       # the next planned stop, taken for FREE
+            car.compound = car.plan.compounds[car.pit_count]
+        car.stint_laps = 0                           # fresh rubber regardless
+    if running:                                      # grid-bunch: single file, grid-spaced
+        leader_t = running[0].total_time
+        for i, car in enumerate(running):
+            car.total_time = leader_t + i * GRID_INTERVAL
+
+
+def _standing_restart(running):
+    """A standing restart from the grid -- the same launch lottery as the original start,
+    so it can shuffle the order more than a gentle rolling restart does."""
+    for car in running:
+        jitter = random.gauss(0, LAUNCH_SPREAD)
+        skill = (car.driver.launch - 0.5) * LAUNCH_SKILL
+        car.total_time += jitter - skill
+
+
 def _wants_caution_stop(car):
     """Should this car grab the cheap stop while the field is neutralised? Yes if it
     still has a planned stop to bring forward and isn't fresh from the pits -- the
@@ -956,19 +1005,44 @@ def _wants_caution_stop(car):
     return random.random() < CAUTION_STOP_BASE + CAUTION_STOP_STRAT * car.driver.strategy
 
 
-def _sc_trigger_chance(incidents):
-    """How likely THIS lap's incidents are to bring out the safety car -- a two-car
-    collision often does, a lone car stricken on track sometimes, an Objectivist
-    spinning off harmlessly rarely. Returns the worst (highest) chance among them."""
-    chance = 0.0
-    for inc in incidents:
-        if inc.cause == "collision" and (inc.retirement or inc.other_retired):
-            chance = max(chance, SC_TRIGGER_COLLISION)
-        elif inc.retirement and inc.cause == "over the limit":
-            chance = max(chance, SC_TRIGGER_OVERLIMIT)
-        elif inc.retirement:
-            chance = max(chance, SC_TRIGGER_SOLO)
-    return chance
+def _neutralisation_for(incidents):
+    """What race control reaches for, given THIS lap's incidents -- the heart of the
+    severity ladder. A double retirement from one collision can stop the race (red flag),
+    else bring out the safety car; a single collision retirement brings the safety car; a
+    lone car stricken warrants a safety car or the lighter VSC; debris or a harmless off
+    gets a VSC at most. Returns (kind, cause) or None. One roll, cumulative thresholds."""
+    double = any(i.cause == "collision" and i.retirement and i.other_retired for i in incidents)
+    collision_dnf = any(i.cause == "collision" and (i.retirement or i.other_retired) for i in incidents)
+    solo_dnf = any(i.retirement and i.cause not in ("collision", "over the limit") for i in incidents)
+    overlimit = any(i.retirement and i.cause == "over the limit" for i in incidents)
+    big_survive = any(i.cause == "collision" and not i.retirement and not i.other_retired
+                      for i in incidents)
+    name = _sc_cause_label(incidents)
+    r = random.random()
+
+    if double:
+        if r < RED_TRIGGER:
+            return ("red_flag", "collision")
+        if r < RED_TRIGGER + SC_TRIGGER_COLLISION:
+            return ("safety_car", "collision")
+        return None
+    if collision_dnf:
+        return ("safety_car", "collision") if r < SC_TRIGGER_COLLISION else None
+    if solo_dnf:
+        if r < SC_TRIGGER_SOLO:
+            return ("safety_car", name)
+        if r < SC_TRIGGER_SOLO + VSC_TRIGGER:
+            return ("vsc", name)
+        return None
+    if overlimit:
+        if r < SC_TRIGGER_OVERLIMIT:
+            return ("safety_car", "an incident")
+        if r < SC_TRIGGER_OVERLIMIT + VSC_TRIGGER_MINOR:
+            return ("vsc", "debris")
+        return None
+    if big_survive and r < VSC_TRIGGER_MINOR:
+        return ("vsc", "debris")
+    return None
 
 
 def _sc_cause_label(incidents):
@@ -1025,15 +1099,16 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
     # and the lap loop below knows who is where from lap 1 onward.
     start_events = _run_start(cars)
 
-    # Neutralisation state. caution_left counts crawl laps remaining (0 = green);
-    # restart_next flags the green lap that follows the crawl; pending_cause is set by a
-    # big incident and brings the safety car out on the NEXT lap (it takes a lap to
-    # deploy). last_caution_lap drives the cooldown between cautions.
+    # Neutralisation state. caution_left counts neutralised laps remaining (0 = green);
+    # restart_next flags the green lap that follows; pending holds (kind, cause) set by a
+    # big incident, brought out on the NEXT lap (race control takes a lap to act).
+    # caution_kind is the live neutralisation's kind; last_caution_lap drives the cooldown.
     caution_left = 0
     restart_next = False
+    caution_kind = ""
     sc_cause = ""
     sc_deploy_lap = 0
-    pending_cause = None
+    pending = None
     last_caution_lap = -SC_COOLDOWN
 
     for lap in range(1, laps + 1):
@@ -1083,35 +1158,48 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
         running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
 
         # --- Race control: what PHASE is this lap? ---------------------------
-        # Green by default. A pending incident brings the safety car out now (bunching
-        # the field); a finished crawl restarts to green; otherwise we keep crawling.
+        # Green by default. A pending incident deploys a neutralisation now; a finished
+        # period restarts to green; otherwise we stay neutralised. What deployment DOES
+        # depends on the kind: the safety car bunches the field, the red flag freezes it
+        # to the grid and hands out free tyres, the VSC does neither (gaps preserved).
         caution = None
         phase = "green"
         if restart_next:
             phase = "restart"
             restart_next = False
-            _restart_scramble(running)
-        elif pending_cause is not None and caution_left == 0:
+        elif pending is not None and caution_left == 0:
             phase = "deploy"
-            sc_cause, sc_deploy_lap = pending_cause, lap
-            caution_left = SC_LAPS
-            _bunch_field(running)
+            caution_kind, sc_cause = pending
+            sc_deploy_lap = lap
+            caution_left = NEUT_LAPS[caution_kind]
+            if caution_kind == "safety_car":
+                _bunch_field(running)
+            elif caution_kind == "red_flag":
+                _red_flag_freeze(running, track)
+            # vsc: nothing -- the gaps are preserved
         elif caution_left > 0:
             phase = "caution"
-        pending_cause = None
+        pending = None
 
-        # --- A neutralised lap: the field crawls behind the safety car, takes the
-        # cheap stop if the window's right, and does NO racing. ---------------
+        # --- A neutralised lap: the field is slowed, no racing. The safety car and VSC
+        # crawl (and allow the cheap stop); the red flag is a standstill (free tyres were
+        # taken at the freeze). ----------------------------------------------
         if phase in ("deploy", "caution"):
-            caution = Caution("safety_car", "deploy" if phase == "deploy" else "running",
+            caution = Caution(caution_kind, "deploy" if phase == "deploy" else "running",
                               sc_cause, sc_deploy_lap)
-            sc_time = _sc_lap_time(track)
             needed = _needed_family(cond.wetness)
+            if caution_kind == "vsc":
+                under_time = track.base_lap_time * VSC_PACE_FACTOR
+            elif caution_kind == "safety_car":
+                under_time = _sc_lap_time(track)
+            else:                                    # red flag: a standstill lap, near-zero
+                under_time = 0.0
             for car in running:
                 car.stint_laps += 1
                 old_total = car.total_time
                 time_lost = 0.0
-                if needed == "slick" and _wants_caution_stop(car):
+                if (caution_kind in ("safety_car", "vsc")
+                        and needed == "slick" and _wants_caution_stop(car)):
                     old_stint = car.stint_laps
                     car.pit_count += 1
                     car.stops_made += 1
@@ -1121,8 +1209,8 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                     pit_stops.append(PitStop(car.driver.name, lap, car.stops_made,
                                              old_stint, car.compound.name))
                     time_lost = _serve_pending(car, time_lost, pit_stops[-1])
-                car.total_time = old_total + sc_time + time_lost
-                car.last_lap = car.total_time - old_total
+                car.total_time = old_total + under_time + time_lost
+                car.last_lap = max(0.0, car.total_time - old_total)
             caution_left -= 1
             if caution_left == 0:
                 restart_next = True
@@ -1134,8 +1222,13 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
             continue
 
         if phase == "restart":
-            caution = Caution("safety_car", "restart", sc_cause, sc_deploy_lap)
-            sc_cause = ""
+            caution = Caution(caution_kind, "restart", sc_cause, sc_deploy_lap)
+            if caution_kind == "safety_car":
+                _restart_scramble(running)           # gentle rolling jostle
+            elif caution_kind == "red_flag":
+                _standing_restart(running)           # the launch lottery, from the grid
+            # vsc: no scramble -- gaps were preserved, racing just resumes
+            caution_kind, sc_cause = "", ""
 
         # Pre-lap gap to the car directly ahead (race-time, from last lap's totals).
         # This is the 'am I stuck behind someone?' signal the undercut decision reads.
@@ -1325,14 +1418,13 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
 
             car.last_lap = car.total_time - old_total
 
-        # Did this lap's racing bring the safety car out? Only if we're green and clear
-        # of a cooldown, and there's room left to neutralise AND restart before the flag.
+        # Did this lap's racing bring out a neutralisation? Only if we're green and clear
+        # of a cooldown, with room left to neutralise AND restart before the flag. The
+        # ladder picks the kind -- VSC, safety car, or (rarely) the red flag.
         if (caution_left == 0 and not restart_next
                 and lap - last_caution_lap >= SC_COOLDOWN
                 and laps - lap >= SC_LAPS + 2):
-            chance = _sc_trigger_chance(incidents)
-            if chance and random.random() < chance:
-                pending_cause = _sc_cause_label(incidents)
+            pending = _neutralisation_for(incidents)
 
         history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops,
                                  investigations=investigations, penalties=penalties,
@@ -1392,7 +1484,8 @@ class RaceSummary:
     undercuts_count: int = 0   # passes completed in the pit lane (the undercut)
     penalties: list = field(default_factory=list)   # [(name, offence, kind, lap)] -- verdicts handed down
     reclassified: list = field(default_factory=list)  # [(name, provisional_pos, official_pos)] at the flag
-    cautions: int = 0          # how many safety-car periods the race saw
+    cautions: int = 0          # how many neutralisation periods the race saw
+    red_flag: bool = False     # was the race ever red-flagged (stopped)?
 
 
 UNDERCUT_WINDOW = 6     # the rival must stop within this many laps for the move to count
@@ -1527,9 +1620,12 @@ def summarize_race(history, track):
                  for rep in history for p in rep.penalties if not p.served]
     reclassified = list(history[-1].reclassified)
 
-    # Safety-car periods: each one is marked by a single 'deploy' lap.
+    # Neutralisation periods: each one is marked by a single 'deploy' lap. A red flag
+    # (a stopped race) is the headline kind, worth flagging on its own.
     cautions = sum(1 for rep in history
                    if rep.caution and rep.caution.status == "deploy")
+    red_flag = any(rep.caution and rep.caution.status == "deploy"
+                   and rep.caution.kind == "red_flag" for rep in history)
 
     return RaceSummary(
         circuit=track.circuit,
@@ -1546,4 +1642,5 @@ def summarize_race(history, track):
         penalties=penalties,
         reclassified=reclassified,
         cautions=cautions,
+        red_flag=red_flag,
     )

@@ -2175,3 +2175,71 @@ DEBRIEF_CAUTION = [
     "That safety car was the hinge of the race. Half of what came before barely mattered after it.",
     "The neutralisation changed everyone's afternoon -- some it saved, some it robbed.",
 ]
+
+
+# =============================================================================
+# RACE CONTROL -- the VSC (full-course yellow) and the RED FLAG.
+# =============================================================================
+# The lighter and the heavier ends of the neutralisation ladder. The VSC holds the
+# gaps and just slows everyone -- a smaller deal, called as such. The RED FLAG stops
+# the race outright: the biggest headline there is, with a free tyre change and a
+# standing restart to follow. {cause_phrase} is built by the booth. (See
+# colour.call_neutralisation / call_resumption.)
+
+VSC_PBP = [
+    "Virtual safety car -- VSC, VSC! {cause_phrase}, everyone slow down!",
+    "Full-course yellow deployed for {cause_phrase} -- delta time on, no overtaking!",
+    "VSC is out for {cause_phrase} -- they hold station, gaps frozen where they are.",
+    "Yellows all round -- the VSC is on for {cause_phrase}. Everyone off the throttle.",
+    "It's a virtual safety car for {cause_phrase} -- not the full car, but they must slow.",
+]
+VSC_COLOUR = [
+    "Kinder than the real thing, this. The leader keeps their cushion -- gaps don't move.",
+    "Still a chance to pit cheap, mind. Anyone due a stop will be thinking about it.",
+    "No bunching, so no lottery. The order's held -- it's just everybody, slower.",
+    "Less drama than a safety car, but the pit wall's still doing sums.",
+    "Gaps preserved -- so whoever was clear stays clear. That's the difference.",
+]
+VSC_END_PBP = [
+    "And the VSC is withdrawn -- green flag, racing resumes!",
+    "Delta off -- we're GREEN again, and they pick up where they left off!",
+    "Full-course yellow over -- green, green, and back up to speed!",
+    "VSC ending -- and they're racing once more, gaps intact!",
+]
+VSC_END_COLOUR = [
+    "No restart shuffle here -- everyone just stands on it again. Tidy.",
+    "Straight back to it. Nobody gained, nobody lost -- as it should be.",
+    "And we resume exactly as we were. The VSC giveth nothing and taketh nothing.",
+    "Back to green with the order untouched. On we go.",
+]
+RED_FLAG_PBP = [
+    "RED FLAG! RED FLAG! The race is STOPPED -- {cause_phrase} has brought it to a halt!",
+    "It's a RED FLAG! They're stopping the Grand Prix -- {cause_phrase}, and that's too much to clear under green!",
+    "Red flag! The race is suspended -- {cause_phrase}, and the cars are heading for the grid!",
+    "STOPPED! A red flag for {cause_phrase} -- the whole race comes to a standstill!",
+]
+RED_FLAG_COLOUR = [
+    "And here's the big one. Free tyre change for everybody -- and that is a GIFT for anyone who hadn't stopped.",
+    "This rips the race up. Whoever paid full price for a stop just watched it count for nothing.",
+    "Fresh rubber for the lot of them, for free. The strategists who gambled long just won the lottery.",
+    "Everything resets. New tyres, a standing start, and all that track position back in the melting pot.",
+    "The leader will hate this. The cushion's gone, the tyres are equal, and it's a drag race from the grid.",
+]
+RED_RESTART_PBP = [
+    "They're lined up on the grid -- lights coming on for the standing restart... and GREEN! GO, GO, GO!",
+    "Standing restart! The lights go out -- and it's a second Grand Prix start, right here!",
+    "Here we go again -- standing start, lights out, and they SCRAMBLE off the line!",
+    "The race resumes from the grid -- lights... away! A clean getaway or chaos, let's see!",
+]
+RED_RESTART_COLOUR = [
+    "Cold tyres, a clutch, and one chance to nail it. This is where the brave are made.",
+    "A whole new launch lottery. Whoever bogs down here loses everything they fought for.",
+    "Standing start -- so it's all about the getaway now. Nail it or lose three places.",
+    "This is the start all over again, and starts are where the carnage lives. Hold tight.",
+]
+DEBRIEF_RED_FLAG = [
+    "And of course the red flag tore it all up -- free tyres, a standing restart, and a brand new race from there.",
+    "That red flag was the whole story. Everything before the stoppage may as well have been a different afternoon.",
+    "You can't talk about this one without the red flag -- it handed fresh tyres to everyone and reset the lot.",
+    "The stoppage decided it. Whoever read that standing restart best walked away with the spoils.",
+]

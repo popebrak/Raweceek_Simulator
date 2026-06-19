@@ -53,7 +53,11 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   DEBRIEF_SIGNOFF_PBP, DEBRIEF_SIGNOFF_BENNY,
                   # race control -- the safety car
                   SAFETY_CAR_PBP, SAFETY_CAR_COLOUR, RESTART_PBP, RESTART_COLOUR,
-                  DEBRIEF_CAUTION)
+                  DEBRIEF_CAUTION,
+                  # race control -- the VSC and the red flag
+                  VSC_PBP, VSC_COLOUR, VSC_END_PBP, VSC_END_COLOUR,
+                  RED_FLAG_PBP, RED_FLAG_COLOUR, RED_RESTART_PBP, RED_RESTART_COLOUR,
+                  DEBRIEF_RED_FLAG)
 
 _DRIVER_BY_NAME = {d.name: d for d in GRID}
 
@@ -751,18 +755,42 @@ class Booth:
             turns.append(("colour", self._fresh("_rundown_benny", RUNDOWN_BENNY)))
         return banter(turns)
 
-    # --- race control: the safety car ---------------------------------------
+    # --- race control: the neutralisation family ----------------------------
+    def _cause_phrase(self, caution):
+        """Turn a terse cause ('collision', 'debris', a driver's name) into something
+        the booth can say."""
+        c = caution.cause
+        if c == "collision":
+            return "that collision"
+        if c == "debris":
+            return "debris on the circuit"
+        if c and c not in ("incident", "an incident"):
+            return f"{c}'s accident"
+        return "an incident on track"
+
+    def call_neutralisation(self, caution):
+        """Deployment, dispatched by kind: the safety car, the lighter VSC, or the
+        race-stopping red flag."""
+        if caution.kind == "vsc":
+            return self._call_vsc(caution)
+        if caution.kind == "red_flag":
+            return self._call_red_flag(caution)
+        return self.call_safety_car(caution)
+
+    def call_resumption(self, caution):
+        """The return to green, dispatched by kind: a rolling restart, a VSC simply
+        lifting, or a standing restart from the grid."""
+        if caution.kind == "vsc":
+            return self._call_vsc_end(caution)
+        if caution.kind == "red_flag":
+            return self._call_red_restart(caution)
+        return self.call_restart(caution)
+
     def call_safety_car(self, caution):
         """The deployment call -- the biggest headline a race throws up. Phill scrambles
         it; Benny reads the strategic carnage (gaps wiped, the cheap-stop rush)."""
-        if caution.cause == "collision":
-            cause_phrase = "that collision"
-        elif caution.cause and caution.cause != "incident":
-            cause_phrase = f"{caution.cause}'s accident"
-        else:
-            cause_phrase = "an incident on track"
         return banter([
-            ("pbp", self._fresh("_sc_pbp", SAFETY_CAR_PBP).format(cause_phrase=cause_phrase)),
+            ("pbp", self._fresh("_sc_pbp", SAFETY_CAR_PBP).format(cause_phrase=self._cause_phrase(caution))),
             ("colour", self._fresh("_sc_colour", SAFETY_CAR_COLOUR)),
         ])
 
@@ -771,6 +799,35 @@ class Booth:
         return banter([
             ("pbp", self._fresh("_restart_pbp", RESTART_PBP)),
             ("colour", self._fresh("_restart_colour", RESTART_COLOUR)),
+        ])
+
+    def _call_vsc(self, caution):
+        """The full-course yellow -- a lighter neutralisation. Gaps held, just slower."""
+        return banter([
+            ("pbp", self._fresh("_vsc_pbp", VSC_PBP).format(cause_phrase=self._cause_phrase(caution))),
+            ("colour", self._fresh("_vsc_colour", VSC_COLOUR)),
+        ])
+
+    def _call_vsc_end(self, caution):
+        """The VSC lifting -- back to green with the order untouched, no shuffle."""
+        return banter([
+            ("pbp", self._fresh("_vsc_end_pbp", VSC_END_PBP)),
+            ("colour", self._fresh("_vsc_end_colour", VSC_END_COLOUR)),
+        ])
+
+    def _call_red_flag(self, caution):
+        """The red flag -- the race STOPPED. The loudest call there is, and the free
+        tyre change is the story Benny reaches for."""
+        return banter([
+            ("pbp", self._fresh("_red_pbp", RED_FLAG_PBP).format(cause_phrase=self._cause_phrase(caution))),
+            ("colour", self._fresh("_red_colour", RED_FLAG_COLOUR)),
+        ])
+
+    def _call_red_restart(self, caution):
+        """The standing restart from the grid -- a second start, launch lottery and all."""
+        return banter([
+            ("pbp", self._fresh("_red_restart_pbp", RED_RESTART_PBP)),
+            ("colour", self._fresh("_red_restart_colour", RED_RESTART_COLOUR)),
         ])
 
     # --- the shows: off-clock segments before and after the race ------------
@@ -860,8 +917,11 @@ class Booth:
             turns.append(("colour", self._fresh("_debrief_cas_single",
                           DEBRIEF_CASUALTY_SINGLE).format(name=s.retirements[0][0])))
 
-        # The safety car, if it had its say -- a race-defining reset worth a word.
-        if getattr(s, "cautions", 0):
+        # Race control, if it had its say -- a red flag is its own headline; any other
+        # neutralisation gets the general nod.
+        if getattr(s, "red_flag", False):
+            turns.append(("colour", self._fresh("_debrief_red", DEBRIEF_RED_FLAG)))
+        elif getattr(s, "cautions", 0):
             turns.append(("colour", self._fresh("_debrief_caution", DEBRIEF_CAUTION)))
 
         # The podium interview -- unchanged: a real give-and-take in each driver's voice.
