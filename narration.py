@@ -22,6 +22,7 @@ audio -- and how this is tested where no speakers (or no espeak) exist.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -42,6 +43,25 @@ DEFAULT_VOICE = {"voice": "en-gb+m2", "speed": 165, "pitch": 50, "amplitude": 12
 ESPEAK_BIN = shutil.which("espeak-ng") or shutil.which("espeak")
 
 
+# Paralinguistic performance tags. Chatterbox Turbo acts on these (it'll actually
+# laugh, sigh, etc.); every other engine -- espeak, Piper, Kokoro, and even Chatterbox
+# Original -- would read them out as literal words, so those strip them before synthesis
+# (see Narrator._voiceable). The tags stay in the on-screen feed as stage directions; we
+# only clean them off the audio path. Keep this list to the tags Turbo recognises.
+PARALINGUISTIC_TAGS = ("laugh", "sigh", "chuckle", "cough",
+                       "gasp", "groan", "sniff", "shush", "clear throat")
+_TAG_RE = re.compile(r"\[(?:" + "|".join(PARALINGUISTIC_TAGS) + r")\]", re.IGNORECASE)
+
+
+def strip_tags(text):
+    """Remove paralinguistic tags from a line and tidy the whitespace/punctuation they
+    leave behind, so a stripped line reads as clean prose ('...well. [sigh]' -> '...well.')."""
+    out = _TAG_RE.sub("", text)
+    out = re.sub(r"\s+([,.!?;:])", r"\1", out)   # close up a space left before punctuation
+    out = re.sub(r"\s{2,}", " ", out)            # collapse any doubled spaces
+    return out.strip()
+
+
 class Narrator:
     """The interface the engine talks to. A backend need only implement speak() (play
     aloud, blocking until done) and to_wav() (render one line to a WAV file).
@@ -52,10 +72,21 @@ class Narrator:
     `capture`  -- is this a record-only narrator (no live sound, no screen)? Used by
                   the audio-export path so it can replay the race silently and collect
                   the script without spamming the terminal.
+    `keeps_tags` -- does this engine ACT on paralinguistic tags like [sigh]/[laugh]?
+                  Only Chatterbox Turbo does. Everything else strips them before
+                  synthesis (via _voiceable) so they aren't read aloud literally. The
+                  tags always remain in the on-screen feed as stage directions -- the
+                  stripping happens only on the audio path.
     """
     audible = False
     capture = False
+    keeps_tags = False
     status = ""            # a human hint when audio ISN'T happening (set by backends)
+
+    def _voiceable(self, text):
+        """The text actually handed to the synth: paralinguistic tags are kept only by
+        an engine that understands them, otherwise stripped so they aren't spoken."""
+        return text if self.keeps_tags else strip_tags(text)
 
     def speak(self, role, text):
         """Read one line aloud, blocking until finished. Return True if real sound was
@@ -135,14 +166,14 @@ class EspeakNarrator(Narrator):
             return False
         # input= feeds the line on stdin; espeak speaks it and the call blocks until
         # the audio has finished, which is what paces a live race at talking speed.
-        subprocess.run(self.command(role), input=text, text=True,
+        subprocess.run(self.command(role), input=self._voiceable(text), text=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         return True
 
     def to_wav(self, role, text, path):
         if not self.available:
             return False
-        r = subprocess.run(self.command(role, wav_path=path), input=text, text=True,
+        r = subprocess.run(self.command(role, wav_path=path), input=self._voiceable(text), text=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         return r.returncode == 0 and os.path.exists(path)
 
@@ -239,7 +270,7 @@ class PiperNarrator(Narrator):
     def to_wav(self, role, text, path):
         if not self.binary or not os.path.exists(self._model(role)):
             return False
-        r = subprocess.run(self.command(role, path), input=text, text=True,
+        r = subprocess.run(self.command(role, path), input=self._voiceable(text), text=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         return r.returncode == 0 and os.path.exists(path) and os.path.getsize(path) > 44
 
@@ -330,7 +361,7 @@ class KokoroNarrator(Narrator):
         if not self.available:
             return False
         try:
-            pcm = self._pcm(role, text)
+            pcm = self._pcm(role, self._voiceable(text))
         except Exception:
             return False
         if not pcm:
@@ -398,6 +429,9 @@ class ChatterboxNarrator(Narrator):
     def __init__(self, ref_dir=None, variant=None):
         self.ref_dir = ref_dir or CHATTERBOX_REF_DIR
         self.variant = (variant or CHATTERBOX_VARIANT)
+        # Only Turbo understands paralinguistic tags; Original would read them aloud, so
+        # it strips them like the other engines do.
+        self.keeps_tags = (self.variant != "original")
         self._cls = None
         self._model = None
         self.device = "cpu"
@@ -489,17 +523,18 @@ class ChatterboxNarrator(Narrator):
         ref = self._ref(role)
         if ref:
             kwargs["audio_prompt_path"] = ref
-        # `exaggeration` only does anything on the Original variant. Turbo doesn't
+        # exaggeration only does anything on the Original variant. Turbo doesn't
         # support it -- it accepts the kwarg but ignores it and logs a warning on every
         # line -- so we simply don't pass it there.
         if self.variant == "original":
             kwargs["exaggeration"] = cfg.get("exaggeration", 1.0)
+        spoken = self._voiceable(text)   # Turbo keeps [sigh]/[laugh]; Original strips them
         try:
             try:
-                wav = model.generate(text, **kwargs)
+                wav = model.generate(spoken, **kwargs)
             except TypeError:
                 kwargs.pop("exaggeration", None)   # a build that rejects it outright
-                wav = model.generate(text, **kwargs)
+                wav = model.generate(spoken, **kwargs)
         except Exception:
             return False
         pcm = _tensor_to_pcm16(wav)

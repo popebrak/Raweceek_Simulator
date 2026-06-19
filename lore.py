@@ -464,12 +464,12 @@ PENALTY_COLOUR = [
     quip("That's the undercut dead in the water -- they've the gap to find AND the penalty to serve, at the same stop.", when="penalty"),
     quip("Now the maths gets cruel: they have to build a five-second buffer, or they're serving it at the flag and dropping like a stone.", when="penalty"),
     quip("Track position they earned on the road, handed straight back in the stewards' room.", when="penalty"),
-    quip("They'll serve it at the stop -- so the crew get five extra seconds to admire their handiwork.", when="penalty"),
+    quip("They'll serve it at the stop -- so the crew get five extra seconds to admire their handiwork. [chuckle]", when="penalty"),
     banter([("pbp", "How much does that cost them, Benny?"),
             ("colour", "A podium becomes a points finish, just like that. They can't just race the car ahead now -- they have to beat it by five seconds, which is a different sport.")], when="penalty"),
     banter([("pbp", "Can they recover from that?"),
             ("colour", "Only by doing on track what the stewards just undid on paper. Pit with a cushion, or cross the line far enough clear that the penalty doesn't matter. Easy to say at this end of the pit wall.")], when="penalty"),
-    quip("And there's the thing about justice at two hundred miles an hour -- it arrives three laps after the crime and lands on the timing screen.", when="penalty"),
+    quip("And there's the thing about justice at two hundred miles an hour -- it arrives three laps after the crime and lands on the timing screen. [sigh]", when="penalty"),
 ]
 
 
@@ -498,7 +498,7 @@ PAIR_LORE = {
         quip("Bakunin past Marx! No gods, no masters, and no central committee telling him to hold position.", when="overtake"),
     ],
     ("Karl Marx", "Max Stirner"): [
-        banter([("colour", "Marx past Stirner. He once wrote three hundred pages just to tell this fella he was wrong."),
+        banter([("colour", "Marx past Stirner. He once wrote three hundred pages just to tell this fella he was wrong. [chuckle]"),
                 ("pbp", "Three hundred?"),
                 ("colour", "Took him one corner today. Should've led with that.")], when="overtake"),
     ],
@@ -566,7 +566,7 @@ DISCUSSIONS = [
         ("pbp", "No?"),
         ("colour", "It's the drive in everything alive to grow, to overcome, to become MORE than it was. He'd say a tree doesn't grow to survive -- it grows to be a bigger tree."),
         ("pbp", "Which on a flying lap--"),
-        ("colour", "--is a man never satisfied, always reaching past the limit. Thrilling to watch. Nightmare to put a delta time in front of."),
+        ("colour", "--is a man never satisfied, always reaching past the limit. Thrilling to watch. [chuckle] Nightmare to put a delta time in front of."),
     ], about=("Friedrich Nietzsche",), topic="will to power"),
 
     discussion([
@@ -587,14 +587,14 @@ DISCUSSIONS = [
         ("pbp", "Diogenes is... a character."),
         ("colour", "Lived in a barrel. Owned a cup till he saw a child drink from cupped hands, then threw the cup away. Carried a lamp round in daylight 'looking for an honest man.'"),
         ("pbp", "Did he find one?"),
-        ("colour", "Never. And his racecraft's the same -- no theory, just send it and embarrass the cleverer bloke. Told Alexander the Great once to get out of his light. To his face."),
+        ("colour", "Never. And his racecraft's the same -- no theory, just send it and embarrass the cleverer bloke. Told Alexander the Great once to get out of his light. To his face. [chuckle]"),
     ], about=("Diogenes",), topic="the cynic"),
 
     discussion([
         ("pbp", "Machiavelli, reading the race three moves ahead as ever."),
         ("colour", "The original strategist. People hear 'Machiavellian' and think villain -- but he was just honest about how power actually works, not how we'd like it to."),
         ("pbp", "The ends justify the means."),
-        ("colour", "More like: judge a leader by results, not intentions. That's the pit wall's creed exactly. He'd undercut his own grandmother and send a lovely card after."),
+        ("colour", "More like: judge a leader by results, not intentions. That's the pit wall's creed exactly. He'd undercut his own grandmother and send a lovely card after. [chuckle]"),
     ], about=("Niccolò Machiavelli",), topic="strategy"),
 
     discussion([
@@ -608,14 +608,14 @@ DISCUSSIONS = [
         ("pbp", "Adorno doesn't look like he's enjoying the spectacle."),
         ("colour", "He never does. Coined 'the culture industry' -- mass entertainment that keeps us docile, sells the same thrill on a loop so we don't ask harder questions."),
         ("pbp", "So a Grand Prix is--"),
-        ("colour", "--exhibit A. Bread and circuits. Mind you, this is the man who, when actual students occupied his lecture hall, called the police. Radical on paper, less so in the corridor."),
+        ("colour", "--exhibit A. Bread and circuits. Mind you, this is the man who, when actual students occupied his lecture hall, called the police. Radical on paper, less so in the corridor. [chuckle]"),
     ], about=("Theodor Adorno",), topic="culture industry"),
 
     discussion([
         ("pbp", "Plato out front, driving to some ideal."),
         ("colour", "Literally. He reckoned everything down here's a shadow of a perfect Form up in the realm of ideas -- a perfect circle, perfect justice, perfect lap."),
         ("pbp", "And the philosopher-king?"),
-        ("colour", "His fix for politics: let the wisest rule. Funny how the man proposing it was always quite sure who the wisest was. Same energy as a driver certain the team should be built round him."),
+        ("colour", "His fix for politics: let the wisest rule. Funny how the man proposing it was always quite sure who the wisest was. Same energy as a driver certain the team should be built round him. [chuckle]"),
     ], about=("Plato",), topic="the forms"),
 
     discussion([
@@ -629,7 +629,7 @@ DISCUSSIONS = [
         ("pbp", "Stirner -- never makes the flag, this one."),
         ("colour", "Course not. To Stirner every cause, every ideal, every duty is a 'spook' -- a ghost you let haunt you. Even Rand's principles were too much furniture for him."),
         ("pbp", "So a race plan--"),
-        ("colour", "--is just another ghost. He owns himself, nothing owns him -- including the strategy that'd actually get him home. Marx wrote a whole book tearing him apart. Stirner barely noticed."),
+        ("colour", "--is just another ghost. He owns himself, nothing owns him -- including the strategy that'd actually get him home. Marx wrote a whole book tearing him apart. Stirner barely noticed. [chuckle]"),
     ], about=("Max Stirner",), topic="the ego and its own"),
 
     discussion([
@@ -755,7 +755,7 @@ DISCUSSIONS = [
         ("pbp", "The Objectivism pair, Rand and Stirner -- two of a kind?"),
         ("colour", "Both worship the self, but they can't stand each other really. Rand built rules around her egoism -- reason, rights, a whole system."),
         ("pbp", "And Stirner?"),
-        ("colour", "Thought rules were for ghosts. No system, no morality, nothing sacred but himself. Rand was horrified to be filed next to him. Two self-made men, neither will finish. Poetic, that.")
+        ("colour", "Thought rules were for ghosts. No system, no morality, nothing sacred but himself. Rand was horrified to be filed next to him. Two self-made men, neither will finish. Poetic, that. [sigh]")
     ], about=("Ayn Rand", "Max Stirner"), topic="the egoists"),
 
     discussion([
@@ -1497,185 +1497,6 @@ TRACK_LORE = {
     "Interlagos": [banter([("pbp", "Interlagos. Short, anticlockwise, deafening."),
                           ("colour", "Senna's home crowd. Where championships come to be decided.")], when="any")],
 }
-
-
-# =============================================================================
-# THE COUNTDOWN TO GREEN -- the pre-race show's phrasings, as pools.
-#
-# The preview used to be near-fixed: the same welcome, the same hand-off, the same
-# "stand by", every single race, only the names changing. These pools give every beat
-# of it the fresh-pick variety the rest of the booth already has -- colour.py's
-# preview() draws one line from each per race. Placeholders the booth fills:
-# {circuit}, {name} (the Grand Prix), {pole}, {team}, {second}.
-# =============================================================================
-
-# Phill opens the show.
-PREVIEW_WELCOME = [
-    "Welcome to {circuit} -- we are set for the {name}.",
-    "A very warm welcome to {circuit}, and to the {name}.",
-    "Hello and welcome to {circuit} for the {name} -- and what a day for it.",
-    "We are live at {circuit} for the {name}. Lovely to have your company.",
-    "Good afternoon from {circuit}, where the {name} is moments from getting under way.",
-    "Welcome, one and all, to the {name}, here at {circuit}.",
-    "{circuit} is bathed in sunshine and noise -- and welcome to the {name}.",
-]
-
-# The pole announcement -- the front row.
-PREVIEW_POLE = [
-    "Pole position goes to {pole} for {team}, {second} alongside on the front row.",
-    "It's {pole} on pole for {team}, with {second} sharing row one.",
-    "{pole} takes pole for {team} -- {second} lines up alongside.",
-    "Top of the timesheet and on pole: {pole}, {team}. {second} for company on the front row.",
-    "Pole, and the clean side of the grid, belongs to {pole} of {team} -- {second} next to them.",
-    "{pole} has put {team} on pole, {second} doing the chasing from second.",
-]
-
-# When only one car set a time (vanishingly rare) -- no front-row partner to name.
-PREVIEW_POLE_SOLO = [
-    "Pole position: {pole} for {team}.",
-    "{pole} on pole for {team}, and precious little company out there.",
-]
-
-# Phill throws to Benny for the watch-points.
-PREVIEW_HANDOFF = [
-    "So what are we watching for, Benny?",
-    "Benny -- where's this one won and lost?",
-    "Talk us through it, Benny. What matters today?",
-    "What's the watch-word, Benny?",
-    "Set the table for us, Benny -- what should we keep our eyes on?",
-    "So what wins it round here, Benny?",
-    "Where should we be looking when the lights go out, Benny?",
-]
-
-# Phill brings the grid to the boil. "Stand by" stays the ritual signal-word.
-PREVIEW_STANDBY = [
-    "Lights out is moments away. Stand by.",
-    "We are moments from lights out. Stand by.",
-    "Not long now -- they're forming up on the grid. Stand by for lights.",
-    "The pit lane is closed, the grid is set. Stand by.",
-    "Here we go, then -- the formation lap is done. Stand by for the start.",
-    "Visors down, revs up. Stand by for lights out.",
-    "This is it. Twenty cars, one green light to come. Stand by.",
-]
-
-# Benny's read on the pole-sitter, bucketed by their stat line. _pole_read() picks the
-# bucket from the numbers, then a phrasing from the pool. {name} is the pole-sitter.
-POLE_READ = {
-    "quick_no_head": [
-        "Quick as anything over one lap, {name} -- but the head for a race? We'll see. Could come back to bite.",
-        "Sensational on a single lap, {name}. Whether the patience is there for a whole race is another matter entirely.",
-        "{name} found half a second from nowhere in qualifying. Now we learn if they can do it for a full afternoon without binning it.",
-    ],
-    "racer": [
-        "And {name} can race as well as qualify -- long afternoon for the rest, this.",
-        "{name} on pole, and this one races every bit as well as they qualify. The rest are in trouble.",
-        "Worst possible news for the field: {name} starts first and is a proper racer with it.",
-    ],
-    "tyre": [
-        "{name} on pole AND gentle on the tyres -- track position and tyre life? That's the dream.",
-        "{name} out front and famously kind to the rubber -- that's the combination everyone fears.",
-        "Pole for {name}, and they look after a set of tyres better than anyone. Ominous.",
-    ],
-    "plain": [
-        "{name} starts where everyone wants to be. Now they have to keep it.",
-        "{name} on pole. The hard part starts when the lights go out.",
-        "Best seat in the house for {name}. Holding it is another thing entirely.",
-        "{name} has done the first job perfectly. The rest of the afternoon to do the rest.",
-    ],
-}
-
-# What-to-watch phrasings, by what the circuit's own numbers say. _track_tips() reads
-# the buckets off the track and picks a phrasing for each, so the same circuit never
-# reads its watch-points the same way twice.
-TRACK_TIP_OPENER = ["Well -- ", "Right -- ", "Where do I start... ", "Plenty, as ever -- ", "Lots to like -- "]
-
-TRACK_TIP_PASS = {
-    "hard": [
-        "passing here is brutal, so track position off the line is everything -- get the start wrong and your Sunday's done",
-        "you cannot pass round here for love nor money, so qualifying and the getaway are the whole game",
-        "overtaking is a nightmare on this circuit -- whoever leads into turn one has a real head start on the afternoon",
-    ],
-    "easy": [
-        "they'll be streaming past all afternoon down these straights -- slipstream city",
-        "this place serves up passing for fun -- expect places to change hands lap after lap",
-        "with these straights nobody is safe -- a lead here is written in pencil",
-    ],
-    "fair": [
-        "a fair test for overtaking -- you can make a move stick if you're brave",
-        "passing is on, but you'll have to earn it -- this rewards a clean, committed move",
-        "it's there to be done if you're brave and patient -- no gifts, but no fortress either",
-    ],
-}
-
-TRACK_TIP_TYRE = {
-    "high": [
-        "and the tyres take an absolute hammering -- this is a strategist's race",
-        "and these tyres won't last -- whoever's kindest to the rubber writes the result",
-        "and tyre wear is savage here, so the stops, and the timing of them, decide it",
-    ],
-    "low": [
-        "and the tyres last forever, so expect them flat out from lights to flag",
-        "and there's barely any wear, so it's a straight fight on pace, not on saving rubber",
-        "and the rubber holds up all day -- nobody's nursing anything, it's pure speed",
-    ],
-}
-
-# THE RUNNING GAG -- writing off the Objectivism car before a wheel has turned.
-# Rand and Stirner are contractually doomed (drivers.py gives them racecraft 0.0 and a
-# guaranteed early retirement), and the booth has FEELINGS about it. One of these plays
-# every Countdown to Green: the same beloved joke, never the same words twice. Each item
-# is a list of (role, line) turns -- some a dry one-liner, some a quick exchange.
-OBJECTIVISM_PREVIEW = [
-    [("colour", "And before a wheel turns, let me save you the suspense: the Objectivism car will not finish. It never does. Rand and Stirner, two laps of heroic self-reliance and a long, principled walk back to the paddock.")],
-
-    [("pbp", "Any word from the Objectivism garage, Benny?"),
-     ("colour", "They've refused the strategy, the tyre data, and, I gather, the concept of other cars. Rand thinks cooperation is a sin; Stirner thinks the pit board is a ghost. Out by lap two, the pair of them.")],
-
-    [("colour", "Keep half an eye on the Objectivism pit, purely for the comedy. Rand built an entire philosophy on the heroic individual who needs no one -- and it has never once got her past half-distance. Turns out the universe is a collective effort.")],
-
-    [("pbp", "Optimistic for Rand this weekend?"),
-     ("colour", "Optimistic she'll reach the first corner. After that it's her against physics and her own principles, and physics has a perfect record.")],
-
-    [("colour", "The Objectivism car: the one team on this grid that holds the rulebook to be tyranny and the marshals to be a mob. Rand and Stirner. They will not finish, and they will be insufferable about it.")],
-
-    [("colour", "Rand's whole creed is that you owe nobody anything -- not the team, not the tow, not the people who built the engine. Lovely theory. Falls apart the instant you need a pit crew, which is every single lap.")],
-
-    [("pbp", "And the Objectivism pairing?"),
-     ("colour", "A masterclass in not finishing, same as ever. Rand thinks asking for help is weakness, Stirner thinks help is a spook, and between them they've the racecraft of a deckchair.")],
-
-    [("colour", "I'll tell you now so you can enjoy the rest in peace: the Objectivism car is going home early. There's a lovely irony in a philosophy of triumph that has never, not once, crossed a finish line -- and I intend to savour it for the full distance.")],
-
-    [("colour", "Rand wrote a thousand pages on the virtue of the winner who owes nobody a thing. Has yet to see a chequered flag. There's your seminar, free of charge.")],
-
-    [("pbp", "Anything from the Objectivists before we go racing?"),
-     ("colour", "Defiant. Magnificently, pointlessly defiant. They'll wave off every instruction on principle and retire bang on schedule, and afterwards Rand will explain that the gravel trap was collectivism's fault.")],
-
-    [("colour", "And as ever, form no attachment to the Objectivism car. Rand and Stirner: two great theorists of standing alone, doing precisely that -- off the track, by lap three.")],
-
-    [("colour", "The Objectivism garage radiating confidence, which on current form means absolutely nothing. Rand cannot account for the one fact that settles her every Sunday -- you do not win a race entirely by yourself -- and she'd sooner retire than admit it. So she does.")],
-
-    [("pbp", "Rand starts down the order again. Surprised?"),
-     ("colour", "Nothing about Rand surprises me any more. She'll call the grid a conspiracy of the mediocre, refuse a single tow on principle, and be in the wall by Sunday lunch. It's almost reassuring.")],
-
-    [("colour", "Spare a thought, in advance, for the Objectivism crew -- the only pit wall on the grid whose driver treats a pit call as an assault on her liberty. They've half stopped putting the boards out. Why bother? She'd only resent the help.")],
-]
-
-
-# A name to watch from outside the top five -- a buried strategist who'll climb, or a
-# charger who won't sit still. _watch_name() picks the bucket; phrasing from the pool.
-# {name} is the driver, {start_ord} their spelled grid position.
-WATCH_STRATEGIST = [
-    "And keep an eye on {name}, starting {start_ord} -- best strategic mind on this grid. Don't be surprised to see them carve through.",
-    "Don't lose sight of {name} down in {start_ord}. Sharpest tactical head out there -- this is exactly the sort to come good on strategy.",
-    "{name} only {start_ord}? Won't matter. Cleverest racer on the grid -- they'll make the undercut sing and you'll see them near the front by the end.",
-    "Watch for {name} from {start_ord}. Buried, yes, but nobody reads a race better -- give it a stint or two and they'll have climbed.",
-]
-WATCH_CHARGER = [
-    "{name} down in {start_ord} won't last long there -- that one does not believe in holding position.",
-    "{name} starts {start_ord}, which won't suit them at all -- pure racer, allergic to sitting in a queue. Elbows out from the off.",
-    "Keep your eye on {name} in {start_ord}. They'll be scything forward inside a handful of laps -- staying put isn't in their nature.",
-    "{name} from {start_ord} is my pick for fireworks -- that's a driver who treats every car ahead as a personal insult.",
-]
 
 
 # Post-race podium quotes -- the DRIVERS speak, each in their own voice.
