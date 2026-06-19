@@ -24,17 +24,12 @@ does becomes something the booth can talk about.
   chequered flag.)
 - **A proper race model** — qualifying and the 107% cut, per-compound tyre wear and
   warm-up, pit strategy with tactical undercuts, launches, overtaking tuned per
-  circuit, two-car collisions with component damage, delayed mechanical DNFs, and a
-  stewards' room that hands out investigations, time penalties, and the occasional
-  flag-time reclassification.
+  circuit, two-car collisions with component damage, and delayed mechanical DNFs.
 - **Weather** that can change mid-race and reshuffle everything.
-- **A commentary booth** — **Phill**, the lap-caller who knows his theory cold but
-  plays to the listener, and **Benny**, the dry ex-racer who thinks half the philosophy
-  is daft and says so. They preview the grid, call the race live, build run-in tension
-  in the closing laps, and debrief afterwards — handing over to **Suze** in the pit lane,
-  who interviews the philosophers on the podium. The pre-race *Countdown to Green* is
-  drawn fresh every weekend, and the doomed Objectivism car gets written off a different
-  way each time.
+- **A commentary booth with two personas** — **Vale**, the excitable lap-caller, and
+  **Benny**, the dry ex-racer who thinks the philosophy is daft. They preview the grid,
+  call the race live, build run-in tension in the closing laps, and debrief afterwards,
+  with quotes from the philosophers on the podium.
 - **Optional spoken commentary** — the booth can be *read aloud* by any of four
   text-to-speech engines, from instant-and-robotic to GPU-quality voice cloning. Or it
   can render a whole weekend to a single `.wav` file.
@@ -50,54 +45,41 @@ does becomes something the booth can talk about.
 
   QUALIFYING RESULTS
   --------------------------------------------------------------
-  P1  Friedrich Nietzsche   Abyss           1:20.706  POLE
-  P2  Plato                 Republic        1:20.711  +0.005
+  P1  Mikhail Bakunin       Black Banner    1:20.602  POLE
+  P2  Michel Foucault       Différance      1:20.670  +0.068
   ...
-  P19 Ayn Rand              Objectivism     1:21.551  +0.845
-  P20 Max Stirner           Objectivism     1:21.599  +0.894
+  P20 Jacques Derrida       Différance      1:21.635  +1.032
 
-  107% cutoff: 1:26.355   (pole 1:20.706)
+  107% cutoff: 1:26.245   (pole 1:20.602)
 
   ------------------------------------------------------------
   COUNTDOWN TO GREEN
-  PHILL: Monza is bathed in sunshine and noise -- and welcome to the Italian Grand Prix.
+  VALE:  Welcome to Monza -- we are set for the Italian Grand Prix.
   BENNY: Big tow, late on the brakes, tifosi screaming for red. Can't not love it.
-  PHILL: Top of the timesheet and on pole: Friedrich Nietzsche, Abyss. Plato for company.
-  BENNY: Best seat in the house for Friedrich Nietzsche. Holding it is another thing entirely.
-  BENNY: Keep half an eye on the Objectivism pit, purely for the comedy. Rand built an entire
-         philosophy on the heroic individual who needs no one -- and it has never once got her
-         past half-distance. Turns out the universe is a collective effort.
-  PHILL: Benny -- where's this one won and lost?
-  BENNY: Well -- this place serves up passing for fun, places changing hands lap after lap;
-         and the tyres last forever, so expect them flat out from lights to flag.
-  PHILL: The pit lane is closed, the grid is set. Stand by.
+  VALE:  Pole position goes to Mikhail Bakunin for Black Banner, Michel Foucault alongside.
+  BENNY: Quick over one lap -- but the head for a race? We'll see. Could come back to bite.
 
   ... [the race plays back live, lap by lap] ...
 
-  L19  PHILL: Plato won't be denied at the Variante del Rettifilo -- through on Karl Marx for third!
-  L31  PHILL: THE UNDERCUT WORKS! Frantz Fanon boxed four laps earlier than Simone de Beauvoir,
-              and the fresh rubber vaults them up to second.
+  L11  VALE:  THE UNDERCUT WORKS! Thomas Paine boxed a lap earlier than Diogenes,
+              and the fresh rubber vaults them ahead into P6.
 
   FINAL CLASSIFICATION
   ------------------------------------------------------------------
-  P1  Simone de Beauvoir    Abyss           72:19.428  WINNER    (from P5, UP 4)
-  P2  Mikhail Bakunin       Black Banner    72:38.422  +18.995   (from P3, UP 1)
-  P3  Friedrich Nietzsche   Abyss           72:53.053  +33.626   (from P1, DOWN 2)  [damaged]
+  P1  Michel Foucault       Différance      18:43.888  WINNER    (from P2, UP 1)
+  P2  Mary Wollstonecraft   Rights of Man   18:50.339  +6.451    (from P6, UP 4)
+  P3  Karl Marx             Vanguard        18:53.384  +9.497    (from P8, UP 5)  [damaged]
   ...
-  --  Max Stirner           Objectivism     DNF (lap 23, from P20)
-  --  Ayn Rand              Objectivism     DNF (lap 7, from P19)
+  --  Ayn Rand              Objectivism     DNF (lap 1, from P13)
 
-  ------------------------------------------------------------
   POST-RACE SHOW
-  PHILL: And that's the chequered flag at Monza -- Simone de Beauvoir wins it for Abyss!
-  BENNY: From fifth on the grid! That's not luck, that's a drive.
-  PHILL: Drive of the day?
-  BENNY: Has to be Herbert Marcuse -- up nine places from the start. Carved clean through the lot.
-  PHILL: Over to pit lane, where Suze has the podium finishers.
-  SUZE:  From fifth on the grid to the podium -- how did that one come together?
-  SIMONE DE BEAUVOIR: Nothing out there was given to me. I made every place, one decision at a time.
-  SUZE:  And the bigger picture -- what does a win like this mean to you?
-  SIMONE DE BEAUVOIR: I authored every metre of that. Nothing today was given to me.
+  VALE:  And that's the chequered flag at Monza -- Michel Foucault wins it for Différance!
+  BENNY: From second on the grid! That's not luck, that's a drive.
+  VALE:  Let's hear from the podium.
+  MICHEL FOUCAULT: They were all being watched. I was the one who decided where to look.
+  KARL MARX: The history of all racing is the history of strategy. Today, the strategy was correct.
+  VALE:  From Monza, that's all from us. Goodnight!
+  BENNY: Drive home safe. Unlike that lot.
 ```
 
 ## Running it
@@ -151,7 +133,7 @@ of any venv. The other three go through pip, inside your activated venv.
 ### Piper voices
 
 Piper needs voice packs (an `.onnx` model **plus** its `.onnx.json` config) in a
-`voices/` folder. Three voices give the booth Phill, Benny, and a podium voice:
+`voices/` folder. Three voices give the booth Vale, Benny, and a podium voice:
 
 ```bash
 cd voices
@@ -202,11 +184,11 @@ to set up, and it's a GPU model.
   cd /path/to/this/project    # the project root -- same place as your existing .venv
   python3.11 -m venv .venv-cb # a brand-new, separate venv (note the different name)
   source .venv-cb/bin/activate
-  pip install --upgrade pip
+  uv pip install --upgrade pip   # inside .venv-cb, install with `uv pip install`, not bare `pip install`
 
   # install a CUDA build of PyTorch FIRST (cu121 is a safe default for an RTX 2060):
-  pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-  pip install chatterbox-tts
+  uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+  uv pip install chatterbox-tts
   python -c "import torch; print('CUDA:', torch.cuda.is_available())"   # want: True
   ```
 
@@ -216,7 +198,7 @@ to set up, and it's a GPU model.
 
 - **VRAM:** Chatterbox wants ~5–7 GB. On a 6 GB card use the **Turbo** variant (the
   default here, ~4.5 GB); don't switch `CHATTERBOX_VARIANT` to `original`.
-- **Voices:** drop a clean ~10–30 s WAV per role into `refs/` as `phill.wav` and
+- **Voices:** drop a clean ~10–30 s WAV per role into `refs/` as `vale.wav` and
   `benny.wav`. No clips → both speakers use the built-in default voice. See
   `refs/README.md`.
 - **Run it** (rendering to a file is the reliable path for a heavyweight model):
@@ -233,7 +215,7 @@ simulation.py   the engine: qualifying, race loop, strategy, analysis
 drivers.py      the 20-philosopher / 10-team grid (data)
 tracks.py       the circuit calendar (data)
 weather.py      conditions and changes (data)
-colour.py       the commentary booth -- Phill, Benny & Suze, the shows, the banter
+colour.py       the commentary booth -- Vale & Benny, the shows, the banter
 lore.py         the lines: track history, persona quips, podium quotes
 display.py      rendering: standings board, commentary feed, telemetry, results
 narration.py    the optional spoken layer -- espeak / piper / kokoro / chatterbox
@@ -243,22 +225,6 @@ refs/           Chatterbox reference clips live here (README inside)
 
 Architecture in one line: **the engine reasons, the data describes, the display speaks,
 and the narration gives it a voice.**
-
-## .gitignore
-
-The downloaded models and audio are big and/or personal, so they're not tracked:
-
-```gitignore
-.venv*/               # any virtual environment (.venv, .venv-cb, ...)
-__pycache__/
-*.pyc
-voices/*.onnx         # Piper voice packs (the folder's README stays tracked)
-voices/*.onnx.json
-*.wav                 # Chatterbox reference clips + rendered race audio
-```
-
-(Kokoro and Chatterbox model weights cache in `~/.cache/huggingface`, outside the repo,
-so there's nothing to ignore for those.)
 
 ---
 
