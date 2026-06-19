@@ -11,6 +11,14 @@ here should pass one test: does it make the racing more vivid? If it only teache
 philosophy, it is in the wrong sport. The colour man wears the philosophy lightly --
 he reaches for it to entertain, and he anchors it to the cars.
 
+ON VOICE (the full character bible lives in colour.py, by PERSONAS): Phill (pbp) is
+no mook -- he knows the theory and the history, but his job is the LISTENER, so he
+draws Benny out on both the philosophy and the racecraft. Both men are steeped in
+Monty Python, the Simpsons, and Douglas Adams, and it leaks out despite their best
+professional efforts: deadpan absurdism, the bleak-but-cheerful aside, over-precise
+pedantry, the non-sequitur left unacknowledged -- then a brisk snap back to the
+racing. Write the funny line straight-faced; write every line to those two voices.
+
 There are now THREE kinds of material, because a broadcast has more than one register:
 
   * THE CALLS -- the lap caller's factual lines: a pass, a crash, a getaway, a stop,
@@ -143,6 +151,21 @@ GENERIC_INCIDENT = [
     quip("Every great thinker meets a problem they can't reason past. For this lot it's usually the wall.", when="incident"),
     quip("He had an answer for everything except the bit where the back end let go.", when="incident"),
     quip("Lovely theory of motion. Shame about the motion.", when="incident"),
+    quip("He's fine -- out of the car and gesturing philosophically, which is the international signal for 'it was the car.'", when="incident"),
+    quip("In an infinite universe there is surely a track where that worked. This was not that track.", when="incident"),
+    quip("He'll have a fully coherent account of why that wasn't his fault by the time he reaches the marshals.", when="incident"),
+    quip("That is what we in the trade call 'a big one,' and what he'll call 'a learning experience.'", when="incident"),
+    quip("The gravel, as ever, declines to engage with the argument.", when="incident"),
+    quip("He has reduced a very expensive car to a very expensive lesson.", when="incident"),
+    quip("The laws of physics remain undefeated, despite a spirited challenge from continental philosophy.", when="incident"),
+    quip("Off into the scenery to reflect on his choices. He's got the time now.", when="incident"),
+    quip("Not so much a corner as a difference of opinion -- which the corner won.", when="incident"),
+    quip("A masterclass, that, in precisely how not to do it.", when="incident"),
+    quip("Beautifully reasoned, all the way up to the bit where it met the barrier.", when="incident"),
+    quip("He raised an objection with the apex. The apex was not taking questions.", when="incident"),
+    quip("Spectacular. Awful, but spectacular. Chiefly awful.", when="incident"),
+    quip("And there he sits, having out-thought everyone but the kerb.", when="incident"),
+    quip("Profound. In the sense that he's now quite deep in the gravel.", when="incident"),
 ]
 GENERIC_OVERTAKE = [
     quip("Lovely move -- even the cleverest of 'em can't think their way out of being passed.", when="overtake"),
@@ -159,6 +182,18 @@ GENERIC_OVERTAKE = [
     quip("And the philosophy of the matter is: too slow.", when="overtake"),
     quip("Decided where every real argument gets decided -- the braking zone.", when="overtake"),
     quip("That's a sentence finished with a full stop. Goodnight.", when="overtake"),
+    quip("Gone -- like a footnote nobody read.", when="overtake"),
+    quip("He'll want that referred to a committee. The committee has just driven off.", when="overtake"),
+    quip("Resistance proved, in the end, both futile and slow.", when="overtake"),
+    quip("Settled out of court, down the inside, no right of appeal.", when="overtake"),
+    quip("There's a word for an argument you lose at the apex. The word is 'second.'", when="overtake"),
+    quip("Two thousand years of thought, undone by a chap who simply braked later.", when="overtake"),
+    quip("He had the better theory. The other one had the better exit.", when="overtake"),
+    quip("Clean as you like. The loser's still drafting his reply.", when="overtake"),
+    quip("Overtaken on merit, on the brakes, and on the balance of probabilities.", when="overtake"),
+    quip("A profound objection, that. Noted, filed, and passed.", when="overtake"),
+    quip("And the seminar's adjourned -- overtaken by events, and also by a car.", when="overtake"),
+    quip("Magnificent. Somewhere a referee blows a whistle that does not exist.", when="overtake"),
 ]
 
 # Occasional colour on a pit stop -- the strategic beat. Most stops pass without a
@@ -170,6 +205,19 @@ GENERIC_PIT = [
     quip("Track position handed over voluntarily. It takes nerve to give up the lead for a faster tomorrow.", when="pit"),
     quip("The pit wall speaks and they obey -- well, most of them. You know the two who won't.", when="pit"),
     quip("Lovely stop. The race is half-run in that lane, and nobody in the grandstand ever claps it.", when="pit"),
+    quip("Roughly four seconds, stationary, surrounded by people who all know better than him. He'll have HATED that.", when="pit"),
+    quip("The undercut, the overcut, the stay-out-and-pray. Three plans, one of them right, and we'll know which in about eleven laps.", when="pit"),
+    quip("There it is -- the one place on the circuit where the cleverest man alive has to sit still and trust a committee.", when="pit"),
+    quip("Fresh tyres on. The car's faster, the wallet's lighter, and the gamble's away.", when="pit"),
+    quip("A stop is just a wager you make at sixty miles an hour and pay off at the flag.", when="pit"),
+    banter([
+        ("pbp", "Talk me through it, Benny -- why now and not three laps ago?"),
+        ("colour", "Track's come to them, tyres have gone off, and the gap behind's just big enough. Three laps ago it was a gamble; now it's arithmetic. Mostly."),
+    ], when="pit"),
+    banter([
+        ("pbp", "And is that the right call?"),
+        ("colour", "Ask me at the flag. That's the maddening beauty of a pit stop -- you only ever find out you were right once it's too late to be wrong."),
+    ], when="pit"),
 ]
 
 
@@ -191,11 +239,15 @@ START_CALLS = {
     "flier": ["{driver} -- what a launch! Storms up to {pos}!",
               "{driver} is away like a scalded cat -- up to {pos} already!",
               "Sensational getaway from {driver} -- {gained} places gained, up to {pos}!",
-              "Where did {driver} come from?! A rocket off the line, up to {pos}!"],
+              "Where did {driver} come from?! A rocket off the line, up to {pos}!",
+              "{driver} launches off the rail and absolutely BUFFETS through -- up to {pos}!",
+              "Oh, {driver} has nailed it -- {gained} places in three hundred metres, up to {pos}!"],
     "good": ["{driver} gets a flier off the line, up to {pos}.",
              "Good launch from {driver} -- slots into {pos} through Turn 1.",
              "{driver} makes a couple off the start, up into {pos}.",
-             "Tidy getaway, {driver} -- gains a place or two, up to {pos}."],
+             "Tidy getaway, {driver} -- gains a place or two, up to {pos}.",
+             "Clean and quick away, {driver}, up to {pos}.",
+             "{driver} times the lights nicely -- up to {pos}."],
     "edge": ["{driver} edges ahead off the line, into {pos}.",
              "{driver} just noses into {pos} on the run down to Turn 1.",
              "A yard gained for {driver} -- into {pos}."],
@@ -207,18 +259,28 @@ OVERTAKE_CALLS = {
              "{driver} is THROUGH on {other}{at} -- a new leader of this Grand Prix!",
              "There it is! {driver} dispatches {other}{at} to lead!",
              "{driver} makes it stick{at} -- past {other}, and into the lead!",
-             "The move for the lead! {driver} clears {other}{at} and hits the front!"],
+             "The move for the lead! {driver} clears {other}{at} and hits the front!",
+             "{driver} goes around the OUTSIDE of {other}{at} -- and leads the Grand Prix!",
+             "We have a new leader! {driver} muscles past {other}{at} and into the lead!",
+             "{driver} sends it{at} -- {other} has no answer, and it's a new race leader!"],
     "podium": ["{driver} forces it past {other}{at} for {pos}!",
                "{driver} dives past {other}{at} -- up to {pos}!",
                "Lovely move by {driver}{at}, clears {other} for {pos}!",
                "{driver} won't be denied{at} -- through on {other} for {pos}!",
-               "{driver} has {other} for {pos}{at} -- and it's done cleanly!"],
+               "{driver} has {other} for {pos}{at} -- and it's done cleanly!",
+               "{driver} throws it up the inside of {other}{at} and grabs {pos}!",
+               "Brave from {driver}{at} -- around {other} and into {pos}!",
+               "{driver} times it to perfection{at}, past {other} for {pos}!"],
     "points": ["{driver} gets the move done on {other}{at}, up to {pos}.",
                "{driver} picks off {other}{at} -- into {pos}.",
                "{driver} makes it past {other}{at} for {pos}.",
                "A place gained for {driver}{at}, ahead of {other} into {pos}.",
                "{driver} slots past {other}{at} and up to {pos}.",
-               "{driver} finds a way by {other}{at} -- {pos} now."],
+               "{driver} finds a way by {other}{at} -- {pos} now.",
+               "{driver} lines up {other}{at} and is through for {pos}.",
+               "Down the inside goes {driver}{at} -- ahead of {other}, into {pos}.",
+               "{driver} eases past {other}{at} and into {pos}.",
+               "Job done for {driver}{at} -- {other} dealt with, up to {pos}."],
 }
 
 # A re-pass between two cars already scrapping -- collapse the flicker into one
@@ -608,19 +670,7 @@ DISCUSSIONS = [
         ("colour", "And neither would give the other a thing. Including, by the look of it, this corner."),
     ], about=("Michel Foucault", "Jacques Derrida"), topic="foucault vs derrida"),
 
-    discussion([
-        ("pbp", "Rand and Marx, wheel to wheel -- you couldn't write it."),
-        ("colour", "The widest gulf in the history of ideas, that. The apostle of the self versus the prophet of the collective. Everything one believes, the other calls a disease."),
-        ("pbp", "No love lost."),
-        ("colour", "None possible. And neither will lift -- because lifting, to both of them, would mean the other was right about something. They'll crash before they concede.")
-    ], about=("Karl Marx", "Ayn Rand"), topic="marx vs rand"),
 
-    discussion([
-        ("pbp", "Marx shadowing Stirner here."),
-        ("colour", "The egoist who got right under his skin. Stirner said every ideal -- including Marx's beloved 'humanity' -- was a spook, a fiction."),
-        ("pbp", "And Marx's reply?"),
-        ("colour", "Three hundred-odd pages of it. 'Saint Max,' he called him, sarcastically, for chapter after chapter. You don't write that much about someone you're not rattled by.")
-    ], about=("Karl Marx", "Max Stirner"), topic="marx vs stirner"),
 
     discussion([
         ("pbp", "The Objectivism pair, Rand and Stirner -- two of a kind?"),
@@ -759,12 +809,6 @@ DISCUSSIONS = [
         ("colour", "Same family, he'd say. Glorious distraction. All that feeling, shared, enormous -- and not one of them thinking about the price of the ticket."),
     ], about=("Karl Marx",), topic="opium of the people"),
 
-    discussion([
-        ("pbp", "The allegory of the cave, Benny. Give us it."),
-        ("colour", "Prisoners chained facing a wall, watching shadows, certain the shadows are the world. One breaks free, sees the sun, comes back to tell them -- and they decide he's mad."),
-        ("pbp", "Bleak."),
-        ("colour", "That's Plato's whole game: most people mistake the shadow for the thing. Half this grid's chasing the reflection of a perfect lap they've half-glimpsed. He thinks he's chasing the real one."),
-    ], about=("Plato",), topic="the cave"),
 
     discussion([
         ("pbp", "There's a chariot in Plato somewhere, isn't there?"),
@@ -816,10 +860,10 @@ DISCUSSIONS = [
     ], about=("Ayn Rand",), topic="a is a"),
 
     discussion([
-        ("pbp", "Stirner and his 'spooks.' What's a spook?"),
-        ("colour", "Any grand abstraction you let boss you about. The State. Morality. Humanity. God. He says they're ghosts -- real only because you bow. Stop bowing and they vanish."),
-        ("pbp", "Including the rulebook."),
-        ("colour", "Especially the rulebook. He'd treat a blue flag as a haunting. Which is precisely why he and Rand are sat in the gravel debating property rights with a marshal."),
+        ("pbp", "Stirner and his 'spooks' -- and for anyone who hasn't waded through The Ego and Its Own, Benny, give them the proper version, because it's better than it sounds."),
+        ("colour", "It's his word for any grand abstraction you let boss you about. The State. Morality. Humanity. God. Ghosts, he says -- real only because you bow to them. Stop bowing and they vanish."),
+        ("pbp", "Which is a marvellous theory right up until a blue flag, I'd have thought."),
+        ("colour", "Especially the blue flag. He'd treat it as a haunting. Which is precisely why he and Rand are sat in the gravel debating property rights with a marshal."),
     ], about=("Max Stirner",), topic="spooks"),
 
     discussion([
@@ -907,12 +951,6 @@ DISCUSSIONS = [
         ("colour", "Plato races the perfect lap in his head. Machiavelli races the one that wins on Sunday. And history, I'm afraid, is rather unkind to the dreamers."),
     ], about=("Plato", "Niccolò Machiavelli"), topic="ideal vs real"),
 
-    discussion([
-        ("pbp", "Rorty spent a career arguing with Plato -- across the centuries."),
-        ("colour", "Demolishing him, in his own words. Plato started the idea there's one true reality behind appearances and philosophy's job is to find it. Rorty called the whole two-thousand-year project a wrong turn."),
-        ("pbp", "Cheeky."),
-        ("colour", "He just wanted us to stop asking 'is it TRUE' and start asking 'is it USEFUL.' Plato would be horrified. Which, watching them race the same tarmac, is rather the joy of it."),
-    ], about=("Richard Rorty", "Plato"), topic="rorty vs plato"),
 
     discussion([
         ("pbp", "Foucault and Marx -- both about power, surely allies?"),
@@ -1027,6 +1065,265 @@ DISCUSSIONS = [
         ("pbp", "Reality won't co-operate."),
         ("colour", "Reality is what it is, she says. And Spa says: yes, and what I AM is unpredictable, so pack the inters like everyone else. She won't. She never does. Hello, gravel."),
     ], about=("Ayn Rand",), track="Spa-Francorchamps", topic="rand at spa"),
+
+    # === NEW WAVE: how the theories play off one another (Phill draws Benny out) ===
+    discussion([
+        ("pbp", "Marx and Rand on the same circuit, Benny. I can't imagine they'd agree on the time of day."),
+        ("colour", "They wouldn't agree on whether there IS a time of day. Marx says you are made by the collective, the class, the conditions. Rand says the collective is a mob with a flag, and the only thing that's real is the individual who refuses it."),
+        ("pbp", "And on track that looks like--?"),
+        ("colour", "Marx nursing the tyres for the good of a race plan nobody clapped, and Rand refusing a single instruction on principle and parking it in the wall. One of them finishes. It is never her."),
+    ], about=("Karl Marx", "Ayn Rand"), topic="marx vs rand"),
+
+    discussion([
+        ("pbp", "People forget Marx actually wrote about Stirner -- and at LENGTH."),
+        ("colour", "Pages and pages. 'Saint Max,' he called him, in this enormous sarcastic demolition -- spent more words ridiculing Stirner's ego than Stirner ever spent having one. The biggest takedown in the history of thought, of a man almost nobody had read."),
+        ("pbp", "Overkill."),
+        ("colour", "Magnificent overkill. Like bringing a wrecking ball to a game of conkers. And here they are sharing a track, Marx still faintly furious, Stirner serenely unbothered because to him Marx is just another spook."),
+    ], about=("Karl Marx", "Max Stirner"), topic="marx vs stirner"),
+
+    discussion([
+        ("pbp", "Foucault and Marx -- both on the left, but they read power completely differently, don't they."),
+        ("colour", "Chalk and very clever cheese. Marx says power runs top-down from who owns the factory. Foucault says no -- it's everywhere, in the timing screen, the medical, the stewards' noticeboard, the little rules that shape you before anyone gives an order."),
+        ("pbp", "So who'd Foucault watch?"),
+        ("colour", "The marshals, not the leader. He'd say the race is won by whoever the SYSTEM was quietly built to reward -- and then he'd find that fascinating rather than do anything about it. Marx would want to know who owns the grandstand."),
+    ], about=("Michel Foucault", "Karl Marx"), topic="foucault vs marx"),
+
+    discussion([
+        ("pbp", "Rorty and Plato -- two and a half thousand years apart, and Rorty spent his career arguing with him."),
+        ("colour", "Plato started the whole game: there's a perfect true world behind this shabby one, and thinking means mirroring it. Rorty said that's the original sin of philosophy -- there's no mirror, no God's-eye view, just us muddling along with better and worse descriptions."),
+        ("pbp", "So the racing line--"),
+        ("colour", "--Plato chases the one PERFECT line that exists in heaven. Rorty just wants the line that's quick today on these tyres. And the maddening thing is Rorty's usually the faster way round. Don't tell Plato."),
+    ], about=("Richard Rorty", "Plato"), topic="rorty vs plato"),
+
+    discussion([
+        ("pbp", "Machiavelli and Plato, then -- the realist and the idealist, side by side."),
+        ("colour", "The whole argument of politics in two cars. Plato designs the ideal race and the ideal driver to run it. Machiavelli says lovely, now here's how races are ACTUALLY won, by people who are tired and frightened and occasionally cheating."),
+        ("pbp", "Ought versus is."),
+        ("colour", "Exactly that. Plato races the track as it should be; Machiavelli races it as it is. One of them keeps getting surprised by the weather. It is not the Florentine."),
+    ], about=("Niccolò Machiavelli", "Plato"), topic="machiavelli vs plato"),
+
+    discussion([
+        ("pbp", "Paine and Wollstonecraft -- now THERE'S an alliance rather than a feud."),
+        ("colour", "Comrades, these two. Same city, same circle, both picked up their pens to answer the same grumpy conservative -- Paine with the Rights of Man, Wollstonecraft with the Rights of Woman, a year apart. Two pamphlets that between them sketched the modern world."),
+        ("pbp", "You can see the kinship on track."),
+        ("colour", "Plain, fearless, no cunning in either of them -- they just point the car at what's right and go. If the grid had a conscience, it'd be these two. Sadly the grid mostly has an ego."),
+    ], about=("Thomas Paine", "Mary Wollstonecraft"), topic="paine and wollstonecraft"),
+
+    discussion([
+        ("pbp", "Diogenes and Rand -- both wave the flag for the individual, and yet."),
+        ("colour", "Opposite ends of the same stick. Rand's individual OWNS things -- the achievement, the building, the trophy, and good luck prising them off her. Diogenes owned a barrel, gave away his only cup when he saw a boy drink from his hands, and was happier than the lot of them."),
+        ("pbp", "Same word, two religions."),
+        ("colour", "Completely. Tell Rand the highest freedom is needing nothing and she'd be appalled. Tell Diogenes the highest freedom is a property portfolio and he'd laugh himself off the barrel. They'd both call the other a fraud, and honestly, grab the popcorn."),
+    ], about=("Diogenes", "Ayn Rand"), topic="diogenes vs rand"),
+
+    discussion([
+        ("pbp", "Nietzsche and Rorty -- both knock the legs out from under 'Truth,' don't they. But they're not the same."),
+        ("colour", "Same demolition, very different mood. Nietzsche tears down the old certainties and it's THUNDER -- create your own values or perish, the lonely hero on the mountain. Rorty tears down the same certainties and it's a man at a barbecue going, ah well, let's just be kind and see what works."),
+        ("pbp", "Cheerful nihilism versus heroic nihilism."),
+        ("colour", "And neither's really nihilism, but don't tell the internet. Out here Nietzsche drives like the fate of mankind's on it. Rorty drives like it's a nice day for a drive. Both quick. Only one needs a lie down after."),
+    ], about=("Friedrich Nietzsche", "Richard Rorty"), topic="nietzsche vs rorty"),
+
+    discussion([
+        ("pbp", "I have to raise it, Benny -- Nietzsche on women was, let's say, not his finest hour, and Wollstonecraft is right there."),
+        ("colour", "Not his finest decade, that. Said some genuinely daft and ugly things about women -- the 'whip' line and worse. No defending it, and I won't. And then you put him on a circuit with Mary Wollstonecraft, who built the entire rational case that he's talking rot."),
+        ("pbp", "She is the rebuttal."),
+        ("colour", "She's the rebuttal in a racing car. Give people reason and a fair chance, she said, and watch them go -- and there she is, going, right past a man who theorised she couldn't. The track keeps no opinions, only lap times. Hers are good."),
+    ], about=("Friedrich Nietzsche", "Mary Wollstonecraft"), topic="nietzsche vs wollstonecraft"),
+
+    discussion([
+        ("pbp", "Adorno and Rorty would NOT have got on, would they."),
+        ("colour", "Oil and water, and the water's doing a little dance. Adorno looks at modern life and sees a beautifully engineered trap and despairs in four hundred pages. Rorty looks at the same thing, shrugs, and says well, it could be kinder, let's try that."),
+        ("pbp", "Pessimist meets optimist."),
+        ("colour", "And they'd each find the other unbearable -- Adorno thinks Rorty's a naive American smiling at a fire, Rorty thinks Adorno's enjoying the gloom too much to put it out. Watch them in the wet: one suffers gloriously, one just gets on with it."),
+    ], about=("Theodor Adorno", "Richard Rorty"), topic="adorno vs rorty"),
+
+    discussion([
+        ("pbp", "Luxemburg and Bakunin -- both can't stand being told what to do, but they're not the same animal."),
+        ("colour", "No. Bakunin wants to smash the state full stop, no plan, trust the rubble. Luxemburg's still a Marxist -- she wants the workers to run things -- but she trusts the spontaneous mass over any central committee. Her line: freedom is always the freedom of the one who thinks differently."),
+        ("pbp", "So a different kind of fearless."),
+        ("colour", "Bakunin's fearless like a fire. Luxemburg's fearless like someone who's read everything, decided anyway, and is already three corners up the road while the committee's still taking minutes."),
+    ], about=("Rosa Luxemburg", "Mikhail Bakunin"), topic="luxemburg vs bakunin"),
+
+    discussion([
+        ("pbp", "Marcuse and Rand -- the Great Refusal versus the virtue of selfishness."),
+        ("colour", "Two people who'd refuse to share a podium, for opposite reasons. Marcuse says the system buys you off with comforts so you stop resisting -- so refuse, say no, want more than they're selling. Rand says the system's only crime is daring to ask you to share."),
+        ("pbp", "Both refusers, then."),
+        ("colour", "Both magnificent refusers. Marcuse refuses for everyone; Rand refuses on behalf of herself and is faintly annoyed there's a herd watching. Put them on track and they both attack -- and you genuinely can't tell whether they're allies or about to collect each other at the chicane."),
+    ], about=("Herbert Marcuse", "Ayn Rand"), topic="marcuse vs rand"),
+
+    discussion([
+        ("pbp", "Derrida and Rorty -- both say there's no solid floor under our words, but they could not SOUND more different."),
+        ("colour", "Same destination, opposite vehicles. Derrida takes forty dense pages to show meaning never quite settles. Rorty says 'yeah, words are tools, use the ones that work' and goes for lunch. One of them you need a seminar to follow; the other you could explain to a labrador."),
+        ("pbp", "And on the track?"),
+        ("colour", "Derrida deconstructs the racing line until there isn't one and ends up in the gravel being interesting about it. Rorty just drives the line that's working. The pragmatist beats the post-structuralist to the flag, then politely declines to call it Truth."),
+    ], about=("Jacques Derrida", "Richard Rorty"), topic="derrida vs rorty"),
+
+    discussion([
+        ("pbp", "Nietzsche and Marx -- the two biggest hammers of the nineteenth century, and they swing at totally different things."),
+        ("colour", "They do. Marx says history's engine is the MATERIAL -- who owns what, who works for whom. Nietzsche says it's the WILL -- the drive in the individual to overcome, to become more. Class versus the lonely self, basically."),
+        ("pbp", "So they'd read this race--"),
+        ("colour", "--completely differently. Marx points at the constructors' budgets and says there's your result, written before lights-out. Nietzsche points at one driver going flat where everyone lifts and says no, THERE'S your result. Annoyingly, on any given Sunday, either of them might be right."),
+    ], about=("Friedrich Nietzsche", "Karl Marx"), topic="nietzsche vs marx"),
+
+    # === thematic: the philosophy OF racing, with the booth's daft streak showing ===
+    discussion([
+        ("pbp", "Here's one for you, Benny. If a driver spins in the forest at Spa and no camera sees it, did it happen?"),
+        ("colour", "The stewards say yes, the driver says no, and the philosopher says 'define happen.' Meanwhile the gravel has already formed a strong and lasting opinion."),
+        ("pbp", "So it's settled."),
+        ("colour", "Everything's settled, Phill, by the gravel. It's the most decisive thing in the paddock. No footnotes, no appeals, just consequences. We should put it in charge."),
+    ], topic="tree in the forest"),
+
+    discussion([
+        ("pbp", "Do any of them ever agree on anything?"),
+        ("colour", "Once a season, by accident, two of them concur and immediately get suspicious of each other for it. Twenty people who built their whole lives on never conceding a point, asked to share one braking zone."),
+        ("pbp", "Recipe for disaster."),
+        ("colour", "Recipe for OUR mortgage, is what it is. If they ever did agree we'd be out of a job and they'd be out of a reason to live. Long may they squabble."),
+    ], topic="do they ever agree"),
+
+
+    discussion([
+        ("pbp", "Walk the listener through an undercut properly, Benny -- it sounds like magic and it isn't."),
+        ("colour", "No magic at all. You pit before the car ahead, bolt on fresh tyres, and for two or three laps you're flying while they're crawling on old rubber. By the time THEY stop, you've banked enough time to come out in front. You overtake them in the pit lane without ever touching them on track."),
+        ("pbp", "A pass you make with arithmetic."),
+        ("colour", "A pass you make with a calculator and a bit of nerve. Machiavelli's favourite kind of move -- you beat a man who never sees you coming and is cross about it for a week."),
+    ], topic="explainer: undercut"),
+
+    discussion([
+        ("pbp", "And the tyres, for anyone new to this -- why all the fuss?"),
+        ("colour", "Because they're the only bit of the car touching the road, and they wear out. Softer rubber's faster but dies young; harder lasts but you give away pace. The whole strategy is just managing a slow, expensive heartbreak."),
+        ("pbp", "Put like that it's almost philosophy."),
+        ("colour", "It IS philosophy, Phill -- it's mortality with a pit board. Everything good out here is running out the moment it starts. Marx would tell you that's true of capitalism. Nietzsche would tell you to love it anyway. I'd tell you it's lap eighteen and the softs are gone."),
+    ], topic="explainer: tyres"),
+
+
+    discussion([
+        ("pbp", "You always say the gravel trap's the real philosopher out here."),
+        ("colour", "It's the only honest one. The cleverest man alive can argue that the corner doesn't really exist, that grip is a social construct, that the wall is a text open to interpretation -- and the gravel just sits there going, mm, lovely, in you come."),
+        ("pbp", "Undefeated."),
+        ("colour", "Never lost an argument in its life. If there's a final truth in this sport, it's beige, it's about a foot deep, and it's just past the exit kerb at every corner on Earth."),
+    ], topic="the gravel philosopher"),
+
+    discussion([
+        ("pbp", "What would this lot make of LOSING, do you reckon? Properly losing."),
+        ("colour", "Oh, every one of them's got it pre-rationalised. Nietzsche calls it overcoming-in-waiting. Marx calls it the system. Rand calls it sabotage by lesser men. Adorno expected it and feels grimly vindicated."),
+        ("pbp", "Nobody just says 'I was slower'?"),
+        ("colour", "Paine might. Possibly Wollstonecraft, through gritted teeth. The other eighteen would sooner rewrite the philosophy of the universe than admit the other chap braked later. It's why we love them."),
+    ], topic="on losing"),
+
+    discussion([
+        ("pbp", "If you had to put one of them in charge of the rulebook, who?"),
+        ("colour", "Dear God, not one of THIS lot. Machiavelli would write rules that only benefit Machiavelli. The anarchists would eat the rulebook on principle. Plato would ban anyone who couldn't define 'overtaking.'"),
+        ("pbp", "So nobody."),
+        ("colour", "So the gravel. We keep coming back to the gravel, Phill. I'm starting to find it a bit spiritual, if I'm honest, and I'd like that noted before I retire."),
+    ], topic="who writes the rules"),
+
+    # === a thinker AND this circuit (more of the booth's local knowledge) ===
+    discussion([
+        ("pbp", "Foucault at Suzuka -- the figure-of-eight, the track that watches itself."),
+        ("colour", "Oh, he'd adore this place. A circuit that literally crosses over itself, where you're always being observed from the other half of the lap. Foucault built a whole theory out of being watched into good behaviour -- and here's a track that does it with a bridge."),
+        ("pbp", "Made for him."),
+        ("colour", "Tailor-made. Everyone else sees a racetrack; Foucault sees the most honest building in the sport -- one that admits it's keeping an eye on you. He'd lap it beautifully and write three hundred pages about the marshals' towers."),
+    ], about=("Michel Foucault",), track="Suzuka", topic="foucault at suzuka"),
+
+    discussion([
+        ("pbp", "Rorty at Silverstone, fast and old and unpretentious."),
+        ("colour", "His kind of place. No mystique, no cathedral -- an old airfield where the corners just work or they don't. Rorty had no time for the sacred; he'd love a track that's quick because it's quick, not because anyone wrote a poem about it."),
+        ("pbp", "Does the job."),
+        ("colour", "Does the job, asks no questions. Maggotts and Becketts don't care about your theory of truth -- get them right or don't. Rorty would call that the most honest philosophy lesson on the calendar, and then have a cup of tea about it."),
+    ], about=("Richard Rorty",), track="Silverstone", topic="rorty at silverstone"),
+
+    discussion([
+        ("pbp", "Adorno at Monaco. The culture-industry man, in the most photographed square mile on Earth."),
+        ("colour", "He's in physical pain, Phill, and loving it. A billion in boats, champagne on every balcony, the whole thing a glittering advert for itself -- Adorno coined 'the culture industry' for precisely this, mass spectacle that keeps everyone pleasantly docile."),
+        ("pbp", "So he hates it."),
+        ("colour", "He hates it the way a man hates being proved right. Every yacht's a footnote in a book he already wrote. He'll do the whole race scowling, finish fourth, and call it commodified disappointment. Marvellous value, Adorno."),
+    ], about=("Theodor Adorno",), track="Monte Carlo", topic="adorno at monaco"),
+
+    discussion([
+        ("pbp", "Fanon at Interlagos -- the people's circuit, the crowd right on top of the cars."),
+        ("colour", "Right where he'd want to be. Fanon wrote for the wretched of the earth, the ones the grandstands were never built for -- and Interlagos is built in a working district, the crowd leaning in, no velvet rope. He'd feel the energy of this place in his chest."),
+        ("pbp", "Decisive as ever, too."),
+        ("colour", "Always. He doesn't wait for the gap to be offered, here least of all. A circuit full of people who were told to know their place, and a driver whose entire life was telling people not to. He tends to go well here, and I don't think it's coincidence."),
+    ], about=("Frantz Fanon",), track="Interlagos", topic="fanon at interlagos"),
+
+    discussion([
+        ("pbp", "Goldman at Monza, then -- joy at the Temple of Speed."),
+        ("colour", "Perfect match. Fastest place they race, the tifosi making an absolute glorious racket -- and Goldman's whole creed was that liberation should FEEL like something. If she can't dance, it's not her revolution; well, Monza's basically a dance at three hundred kilometres an hour."),
+        ("pbp", "She'll enjoy it more than most."),
+        ("colour", "She'll enjoy it more than the rest of the grid combined. Half of them treat winning as a grim duty. Goldman treats the slipstream down the back straight as a party she was personally invited to. Refreshing, honestly."),
+    ], about=("Emma Goldman",), track="Monza", topic="goldman at monza"),
+
+    # === Phill carries the erudition: he lands the fact, corrects the record, teaches
+    #     the theory, and asks Benny only for the racecraft. Both men know their history. ===
+    discussion([
+        ("pbp", "And before you say it, Benny -- it wasn't a barrel. Everyone says barrel. Diogenes lived in a pithos, a great clay storage jar. They didn't HAVE barrels in ancient Greece."),
+        ("colour", "...you're quite right, and I hate that you're right. Go on, then, finish the set."),
+        ("pbp", "Threw away his only cup when he saw a boy drink from cupped hands. Told Alexander the Great, who'd offered him anything he liked, to kindly stop blocking the sun."),
+        ("colour", "And THAT'S the man in car nineteen, who'll cheerfully wave the leader through if he decides trophies are a delusion. Half the time it's not slowness, Phill. It's a lifestyle."),
+    ], about=("Diogenes",), topic="diogenes the jar"),
+
+    discussion([
+        ("pbp", "People hear 'Machiavellian' and picture a villain. But the man wrote a whole second book, the Discourses, that's a love letter to the Roman REPUBLIC. He was a republican, Benny."),
+        ("colour", "He was. The Prince reads more like a job application -- written after the Medici tortured him and threw him out, basically saying 'look how useful I'd be, please employ me.'"),
+        ("pbp", "So is he the cynic everyone thinks, or the idealist who got a bad press?"),
+        ("colour", "Bit of both, which is why he's lethal in the car. He'll do the ruthless thing AND believe it serves a higher cause. Most dangerous man on the grid: the one with a clear conscience and a late dive."),
+    ], about=("Niccolò Machiavelli",), topic="machiavelli the republican"),
+
+    discussion([
+        ("pbp", "Here's a thread the casual viewer misses: Césaire taught Fanon. Literally. Schoolteacher in Martinique, Fanon in the classroom -- and Césaire helped invent Négritude before Fanon wrote a word."),
+        ("colour", "Which is why when those two race together it's not a rivalry, it's a relay. The teacher hands the baton to the student, and the student goes further and angrier than the teacher ever did."),
+        ("pbp", "You can see the lineage in the driving."),
+        ("colour", "Same root, two flowers. Césaire's the poetry, Fanon's the fight. And neither of them, you'll notice, has ever once waited to be told they're allowed past."),
+    ], about=("Aimé Césaire", "Frantz Fanon"), topic="cesaire taught fanon"),
+
+    discussion([
+        ("pbp", "Spare a thought for Paine. Wrote the pamphlet that lit the American Revolution, then the one that rattled Britain -- and ALSO, decades early, sketched out what's basically a citizen's pension in Agrarian Justice. Visionary."),
+        ("colour", "And died with about six people at his funeral. Annoyed too many of the right people. There's a lesson in that for a man running sixth and telling everyone the truth on the radio."),
+        ("pbp", "Right too soon is still wrong, as far as the world's concerned."),
+        ("colour", "Story of his life and most of his races. He'll make the brave honest call three laps before it's fashionable, and get nothing for it but a place in the history books. Cold comfort at the flag."),
+    ], about=("Thomas Paine",), topic="paine agrarian justice"),
+
+    discussion([
+        ("pbp", "And a bit of literary history the textbooks skip, Benny: Wollstonecraft was Mary Shelley's mother. Wrote the Vindication, then died days after giving birth to the woman who'd write Frankenstein."),
+        ("colour", "So one generation argues for the rights of woman, and the next invents science fiction warning what happens when you build something and refuse to care for it. There's a family motto in there somewhere."),
+        ("pbp", "Reason and consequences, handed down."),
+        ("colour", "And it shows. She races like someone who's read the ending -- measured, fearless, no theatrics. The grown-up in a field of toddlers with PhDs."),
+    ], about=("Mary Wollstonecraft",), topic="wollstonecraft and shelley"),
+
+    discussion([
+        ("pbp", "Let me set this one up properly for the listener, because it's Foucault's big idea. The panopticon -- Bentham's prison design: one tower, every cell visible, but you can never tell if you're being watched. So you behave as if you always are. Foucault said that's modern power in one building."),
+        ("colour", "Spot on. You don't need a guard for every cell, just the POSSIBILITY of a guard."),
+        ("pbp", "So translate it to the track for me -- where's the panopticon out here?"),
+        ("colour", "The telemetry, Phill. Every input logged, every lift, every lazy apex on a screen on the pit wall. Nobody's shouting at them -- but they all drive like someone's watching, because someone always could be. Foucault would call this the most honest racetrack ever built."),
+    ], about=("Michel Foucault",), topic="the panopticon"),
+
+    discussion([
+        ("pbp", "And I want to correct the record while he's on screen. That book everyone quotes, The Will to Power? Nietzsche never finished it. His sister cobbled it together from his notebooks after he collapsed -- and she was a raging antisemite who bent his name toward people he'd have despised."),
+        ("colour", "Genuinely important, that. He broke with the antisemites in his own lifetime, in writing. The monster version of Nietzsche is largely his sister's edit."),
+        ("pbp", "So the man and the myth aren't the same driver."),
+        ("colour", "Rarely are. Read him straight and he's wilder and stranger and a lot less use to tyrants than they wanted. On track? Fearless, contradictory, occasionally magnificent, occasionally in a hedge. Like the actual books."),
+    ], about=("Friedrich Nietzsche",), topic="nietzsche's sister"),
+
+    discussion([
+        ("pbp", "Now I have to defend Adorno's record on one thing, Benny, and you'll laugh: the man HATED jazz. Wrote furious essays about it. Genuinely thought it was a con."),
+        ("colour", "He did, and it's the worst take in the entire Frankfurt School, which is a competitive field. Bloke who could x-ray a whole civilisation, completely bounced off a saxophone."),
+        ("pbp", "Even the giants have a blind spot."),
+        ("colour", "Every one of them. Same Adorno who'll read this race like a sacred text will utterly fail to enjoy a single second of it. Misses the music, Phill. Brilliant man, no rhythm."),
+    ], about=("Theodor Adorno",), topic="adorno hated jazz"),
+
+    discussion([
+        ("pbp", "Plato's whole worldview's in one image, and I think it actually helps watching this. The cave: people chained facing a wall, mistaking shadows for the real thing. One gets out, sees the sun, comes back -- and they think HE'S the mad one."),
+        ("colour", "And every driver on this grid is convinced HE'S the one who got out of the cave and everyone else is watching shadows."),
+        ("pbp", "All twenty of them. Can't all be right."),
+        ("colour", "Can't all be right, all certain they are. That's the whole sport, that's the whole of philosophy, and that's why the gravel stays so busy. Reality's the bloke who came back from the sun. The wall's where they keep ending up."),
+    ], about=("Plato",), topic="the cave"),
+
+    discussion([
+        ("pbp", "Marx on the grid, and people forget how skint he was. Exiled to London, broke for years, writing Capital in the British Museum reading room while the rent went unpaid. Buried up in Highgate under that enormous head."),
+        ("colour", "The great theorist of capital, who could never get any. There's something almost tender in it -- the man saw the whole machine clearly precisely because it kept grinding HIM."),
+        ("pbp", "Clear sight from the cheap seats."),
+        ("colour", "Best view in the house, the cheap seats. He drives like a man who's read the whole system's accounts and knows exactly who's getting paid -- and it's never him. Patient, relentless, faintly furious. Watch him in the long runs."),
+    ], about=("Karl Marx",), topic="marx in london"),
 ]
 
 
