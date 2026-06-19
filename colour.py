@@ -42,7 +42,15 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   # the Countdown to Green -- pooled phrasings + the Objectivism gag
                   PREVIEW_WELCOME, PREVIEW_POLE, PREVIEW_POLE_SOLO, PREVIEW_HANDOFF,
                   PREVIEW_STANDBY, POLE_READ, TRACK_TIP_OPENER, TRACK_TIP_PASS,
-                  TRACK_TIP_TYRE, OBJECTIVISM_PREVIEW, WATCH_STRATEGIST, WATCH_CHARGER)
+                  TRACK_TIP_TYRE, OBJECTIVISM_PREVIEW, WATCH_STRATEGIST, WATCH_CHARGER,
+                  # the rundown -- a periodic "state of the race" readout
+                  RUNDOWN_OPENER, RUNDOWN_LEADER, RUNDOWN_POINTS_EDGE, RUNDOWN_BENNY,
+                  # the debrief -- pooled spine + arc-driven "stories of the race"
+                  DEBRIEF_WON_DOMINANT, DEBRIEF_WON_FOUGHT, DEBRIEF_WON_CHARGE,
+                  DEBRIEF_STORY_Q, DEBRIEF_STORY_OPENER, DEBRIEF_ARC_CONTACT,
+                  DEBRIEF_ARC_UNDERCUT, DEBRIEF_ARC_EPIC, DEBRIEF_DOTD,
+                  DEBRIEF_CASUALTY_DOUBLE, DEBRIEF_CASUALTY_SINGLE,
+                  DEBRIEF_SIGNOFF_PBP, DEBRIEF_SIGNOFF_BENNY)
 
 _DRIVER_BY_NAME = {d.name: d for d in GRID}
 
@@ -698,6 +706,48 @@ class Booth:
         pbp_line, colour_line = pairs[i]
         return banter([("pbp", pbp_line), ("colour", colour_line)])
 
+    # --- the rundown: a periodic state-of-the-race readout ------------------
+    def call_rundown(self, standings, lap, total_laps):
+        """A 'where everyone stands' readout, GENERATED from the live order so it's
+        different every time the order is. The booth rotates between a few structural
+        frames (the front of the field / a longer sweep / the points picture) and draws
+        the wording fresh from pools, so a recap never lands the same way twice. Returns
+        a Bit, or None if there's too little field left to bother."""
+        running = [s for s in standings if not s.retired]
+        if len(running) < 4:
+            return None
+        opener = self._fresh("_rundown_open", RUNDOWN_OPENER)
+        lead = self._fresh("_rundown_leader", RUNDOWN_LEADER).format(leader=running[0].name)
+
+        frames = ["front", "sweep", "points"]
+        last = getattr(self, "_last_rundown_frame", None)
+        frame = random.choice([f for f in frames if f != last] or frames)
+        self._last_rundown_frame = frame
+
+        depth = 5 if frame == "sweep" else 3
+        chasers = running[1:1 + depth]
+        parts = []
+        for i, s in enumerate(chasers):
+            if i == 0:
+                parts.append(f"from {s.name}")
+            elif i == len(chasers) - 1:
+                parts.append(f"and {s.name}")
+            else:
+                parts.append(f"then {s.name}")
+        body = f"{lead}, " + ", ".join(parts)
+
+        if frame == "points":                       # the last-points-place flourish
+            p10 = next((s for s in running if s.position == 10), None)
+            if p10:
+                edge = self._fresh("_rundown_edge", RUNDOWN_POINTS_EDGE).format(
+                    name=p10.name, pos=_ord(10))
+                body += ". " + edge[0].upper() + edge[1:]
+
+        turns = [("pbp", f"{opener} {body}.")]
+        if random.random() < 0.5:                    # a dry tag, about half the time
+            turns.append(("colour", self._fresh("_rundown_benny", RUNDOWN_BENNY)))
+        return banter(turns)
+
     # --- the shows: off-clock segments before and after the race ------------
     def preview(self, quali, track):
         """The 'Countdown to Green': set the scene, the track's history, the top of
@@ -737,55 +787,55 @@ class Booth:
         turns.append(("pbp", self._fresh("_prev_standby", PREVIEW_STANDBY)))
         return turns
 
-    def debrief(self, summary, history, track):
-        """The post-race show: how it was won, where strategy turned, the drive of
-        the day, the casualties, and quick quotes from the podium. Returns a list of
-        (role, line) turns -- with the podium lines spoken by the DRIVERS themselves."""
+    def debrief(self, summary, history, track, memory=None):
+        """The post-race show. Its spine is now the race's ACTUAL arcs (read from the
+        director's RaceMemory): the fights that defined the race and how they ended --
+        a clash, an undercut, an epic that ran to the flag. That makes the show the
+        PAYOFF of what we watched, and different every weekend, because the arcs are.
+        Every framing line is now drawn fresh from a pool, so the booth stops repeating
+        itself. Falls back gracefully (skips the stories beat) if no memory is given."""
         s = summary
         turns = [("pbp", f"And that's the chequered flag at {s.circuit} -- "
                          f"{s.winner} wins it for {s.team}!")]
 
-        # How it was won.
+        # How it was won -- pooled, so the same KIND of win doesn't draw the same words.
         if s.winner_from == 1 and s.lead_changes == 0:
-            turns.append(("colour", f"Lights to flag, never troubled. {s.winner} made that look "
-                                    f"easy, and it never is."))
+            turns.append(("colour", self._fresh("_debrief_won_dom",
+                          DEBRIEF_WON_DOMINANT).format(winner=s.winner)))
         elif s.winner_from == 1:
-            turns.append(("colour", "Started on pole, but had to fight for it -- lead changed hands "
-                                    "out there. A proper race."))
+            turns.append(("colour", self._fresh("_debrief_won_fought",
+                          DEBRIEF_WON_FOUGHT).format(winner=s.winner)))
         else:
-            turns.append(("colour", f"From {_ord(s.winner_from)} on the grid! That's not luck, "
-                                    f"that's a drive."))
+            turns.append(("colour", self._fresh("_debrief_won_charge",
+                          DEBRIEF_WON_CHARGE).format(winner=s.winner, start=_ord(s.winner_from))))
 
-        # Where strategy turned.
-        if s.undercuts_count:
-            turns.append(("pbp", "And strategy played its part?"))
-            turns.append(("colour", f"The undercut was the weapon today -- {_spell(s.undercuts_count)} "
-                                    f"of them paid off in the pit lane. Won and lost on the timing "
-                                    f"screen, not on the road."))
-        elif s.lead_changes >= 3:
-            turns.append(("colour", "Won on track, this one -- wheel to wheel, none of your "
-                                    "pit-lane chess. Loved it."))
+        # The stories of the race -- the defining fights, read from the arcs the
+        # director tracked. THIS is the memory wiring: the show recalls what we watched,
+        # framed by how each fight ended. It also covers the strategy beat (an undercut
+        # that settled a battle), so there's no separate canned strategy line any more.
+        stories = self._race_stories(memory)
+        if stories:
+            turns.append(("pbp", self._fresh("_debrief_story_q", DEBRIEF_STORY_Q)))
+            turns.extend(stories)
 
         # The drive of the day.
         if s.drive_of_the_day:
             name, gained = s.drive_of_the_day
+            gain = f"{_spell(gained)} place{'s' if gained != 1 else ''}"
             turns.append(("pbp", "Drive of the day?"))
-            turns.append(("colour", f"Has to be {name} -- up {_spell(gained)} place"
-                                    f"{'s' if gained != 1 else ''} from the start. Carved clean "
-                                    f"through the lot of them."))
+            turns.append(("colour", self._fresh("_debrief_dotd",
+                          DEBRIEF_DOTD).format(name=name, gain=gain)))
 
         # Where it went wrong.
         if s.double_dnfs:
             a, b, _lap, _loc = s.double_dnfs[0]
-            turns.append(("colour", f"And spare a thought for {a} and {b} -- took each other clean "
-                                    f"out. That's where it all went wrong for two of them."))
+            turns.append(("colour", self._fresh("_debrief_cas_double",
+                          DEBRIEF_CASUALTY_DOUBLE).format(a=a, b=b)))
         elif s.retirements:
-            turns.append(("colour", f"{s.retirements[0][0]}'s afternoon ended early, too. The race "
-                                    f"doesn't forgive much out there."))
+            turns.append(("colour", self._fresh("_debrief_cas_single",
+                          DEBRIEF_CASUALTY_SINGLE).format(name=s.retirements[0][0])))
 
-        # The podium interview -- a real give-and-take, conducted by the pit-lane
-        # reporter, with questions drawn from THIS driver's race. Racing first; the
-        # philosophy quote is the closer. (See _interview.)
+        # The podium interview -- unchanged: a real give-and-take in each driver's voice.
         podium = s.podium[:3]
         if podium:
             turns.append(random.choice(PODIUM_HANDOFF))
@@ -794,12 +844,49 @@ class Booth:
                 turns.extend(self._interview(name, pos, team, final, history, s))
             turns.append(("report", "Plenty to chew on -- back to you in the booth."))
 
-        # Sign-off.
-        turns.append(("pbp", f"From {s.circuit}, that's all from us. Goodnight!"))
-        turns.append(("colour", random.choice([
-            "Same again next week, when this lot will once more agree on absolutely nothing.",
-            "Drive home safe. Unlike that lot.",
-        ])))
+        # Sign-off -- pooled both sides now.
+        turns.append(("pbp", self._fresh("_debrief_signoff",
+                      DEBRIEF_SIGNOFF_PBP).format(circuit=s.circuit)))
+        turns.append(("colour", self._fresh("_debrief_signoff_b", DEBRIEF_SIGNOFF_BENNY)))
+        return turns
+
+    def _arc_score(self, arc):
+        """How memorable a fight was: trades and reignitions, a bonus for a dramatic
+        ending, and more weight the closer to the front it was fought."""
+        score = arc.exchanges * 2 + arc.reignitions * 3
+        if arc.resolved == "contact":
+            score += 6
+        elif arc.resolved == "undercut":
+            score += 4
+        score += max(0, 6 - arc.position)
+        return score
+
+    def _race_stories(self, memory):
+        """Pick the two most memorable fights from the race's arcs and frame each by
+        how it ENDED -- a clash, an undercut, or an epic that ran on. Returns colour
+        turns, or [] when there's no memory or nothing worth retelling."""
+        if memory is None:
+            return []
+        arcs = [a for a in memory.arcs.values()
+                if a.exchanges >= 1 or a.reignitions >= 1 or a.resolved in ("contact", "undercut")]
+        if not arcs:
+            return []
+        arcs.sort(key=self._arc_score, reverse=True)
+        turns = [("colour", self._fresh("_debrief_story_open", DEBRIEF_STORY_OPENER))]
+        for arc in arcs[:2]:
+            winner = arc.leader or next(iter(arc.pair))
+            others = arc.pair - {winner}
+            loser = next(iter(others)) if others else winner
+            if arc.resolved == "contact":
+                line = self._fresh("_debrief_arc_contact",
+                                   DEBRIEF_ARC_CONTACT).format(a=winner, b=loser)
+            elif arc.resolved == "undercut":
+                line = self._fresh("_debrief_arc_undercut",
+                                   DEBRIEF_ARC_UNDERCUT).format(winner=winner, loser=loser)
+            else:
+                line = self._fresh("_debrief_arc_epic",
+                                   DEBRIEF_ARC_EPIC).format(a=winner, b=loser)
+            turns.append(("colour", line))
         return turns
 
     # --- show helpers -------------------------------------------------------

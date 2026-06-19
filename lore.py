@@ -1778,36 +1778,57 @@ PODIUM_QUESTIONS = {
         "{gained} places up from where you started -- talk us through that charge.",
         "You came right through the field today -- where did you make the difference?",
         "From {start_ord} on the grid to the podium -- how did that one come together?",
+        "{gained} places made up -- was there a particular move that broke it open?",
+        "You were a man on a mission from lights out -- when did you sense the podium was on?",
+        "Starting {start_ord}, most would settle for points. When did you decide to gamble for more?",
     ],
     "teammate": [
         "You and {mate} had quite the battle out there -- how close did that get?",
         "It looked like you and {mate} were really racing each other hard today?",
         "That scrap with {mate} -- was it as tense in the car as it looked from here?",
+        "You gave {mate} no quarter today -- is that how it has to be between teammates?",
+        "Wheel to wheel with {mate} for laps on end -- did either of you ever lift?",
+        "The garage must have been holding its breath watching you and {mate}. Worth it?",
     ],
     "team_orders": [
         "Were team orders ever a consideration, or were you both free to race?",
         "Did the pit wall ever ask you to hold position, or was it gloves off?",
         "Was there ever a call to settle it between you, or were you let race?",
+        "Did a voice in your ear ever tell you to back out of it?",
+        "Some teams would have frozen that. Were you ever told to?",
+        "No 'hold station' from the wall, then -- or did you just not fancy listening?",
     ],
     "weather": [
         "When the rain came, what was the call on the tyres?",
         "The conditions were all over the place -- how did you read them?",
         "That gamble when the weather turned -- talk us through the thinking.",
+        "Everyone blinked when the sky opened. What made you commit when you did?",
+        "Half the field got the tyre call wrong today. How did you get it right?",
+        "Treacherous out there at the worst of it -- how much was guesswork, how much feel?",
     ],
     "survival": [
         "You took a knock out there and still brought it home -- how was the car after?",
         "There was contact early on -- how close did you come to not finishing?",
         "You carried damage to the flag -- how much was that hurting you out there?",
+        "After that contact, did you ever think the podium was gone?",
+        "A wounded car and a long way to go -- how did you manage it home?",
+        "Most cars don't recover from a hit like that. How did yours?",
     ],
     "pole_to_win": [
         "Pole to flag, never headed -- was it as controlled as it looked from here?",
         "You led every lap -- was it ever as comfortable as the gap suggested?",
         "Lights to flag out front -- where was this race actually won?",
+        "Never put a wheel wrong all afternoon -- is that harder than fighting through?",
+        "From the front the whole way -- was the pressure ever really off?",
+        "A lights-to-flag win can look easy. What were we not seeing from here?",
     ],
     "win_open": [
         "Take us through it -- when did you know the win was on?",
         "A brilliant drive -- where do you reckon you won this one?",
         "When did you start to believe today was your day?",
+        "What was the moment it turned in your favour?",
+        "Walk us through the win -- where did it come together for you?",
+        "Was there a point out there where you knew nobody was catching you?",
     ],
 }
 
@@ -1832,36 +1853,57 @@ PODIUM_ANSWER_GENERIC = {
         "We were quick where it mattered and patient where we had to be. The places came.",
         "I kept my head, picked them off one at a time, and trusted the car would still be there at the end. It was.",
         "Once you're past the first two it becomes a rhythm. You stop counting and just keep moving forward.",
+        "You don't think about the whole climb. You think about the car in front, and then the next one.",
+        "Starting back there frees you up, oddly. Nothing to lose, so you commit to every gap.",
+        "The pace was always in the car. It was just a question of getting it through the traffic in one piece.",
     ],
     "teammate": [
         "Hard but fair. We've earned the right to race each other, and we did -- cleanly.",
         "Close. Closer than the team would have liked, I should think. But that's racing.",
         "We pushed each other all afternoon. That's what a good pairing is for -- nobody got a free ride.",
+        "We respect each other enough to race hard and not put each other in the wall. That's the deal.",
+        "Neither of us was going to lift, and neither of us did. I'd not have it any other way.",
+        "You race your teammate hardest of all -- they've got the same machine, so there are no excuses.",
     ],
     "team_orders": [
         "We were free to race. It's the only way I'd want it.",
         "No orders. We sorted it on the track, the way it should be.",
         "If there was a call to hold station, I'd like to think I heard it... eventually.",
+        "Gloves off, start to finish. The team trusts us to bring them both home, and we did.",
+        "Nobody told me to move over, and I wasn't going to ask the question.",
+        "The pit wall let us get on with it. To their credit, they held their nerve.",
     ],
     "weather": [
         "You commit to a read and you live with it. Today the read was right.",
         "Half of it is nerve. You can't wait to be certain -- by then you've lost it. I went early, it paid.",
         "The track tells you, if you're listening. I listened a fraction sooner than the rest.",
+        "You feel the grip going through your hands before you see it. I trusted that, and dived in.",
+        "Conditions like that, the brave call and the stupid call look identical until the next corner.",
+        "I'd rather be a lap early on the right tyre than a lap late on the wrong one. Today that was the difference.",
     ],
     "survival": [
         "She was bruised, but she answered. You drive around the damage and hope it holds. It held.",
         "Wounded but willing. You shorten the braking, you nurse it, you count the laps down.",
         "Not pretty after that knock. But a damaged car on the podium beats a perfect one in the gravel.",
+        "You learn what the car will still give you, and you ask for exactly that and no more.",
+        "Every lap after the contact I was listening for something to let go. It never quite did.",
+        "You make a deal with a damaged car: I'll be gentle, you get me home. We both kept our end.",
     ],
     "pole_to_win": [
         "Never as easy as it looks. You're managing the gap, the tyres, your own mind, every lap.",
         "Controlled, yes -- but control is work. The moment you relax out front is the moment it slips.",
         "From the front you race the track and your own concentration. Both tried to catch me out.",
+        "Leading is lonely and it's loud in your own head. You have to keep inventing a rival to chase.",
+        "The gap looks comfortable from the outside. Inside, you're defending an empty mirror every lap.",
+        "Clean air is a gift, but it's a trap too -- nothing to react to, so you have to drive yourself.",
     ],
     "win_open": [
         "When the gap behind me stopped coming down, I let myself believe it. Not before.",
         "There's a moment the car comes to you and everything else goes quiet. After that, just laps.",
         "I knew when I crossed the line, and not a corner sooner. You never count it before then.",
+        "It came together in the middle stint -- the car switched on, and so did I.",
+        "You wait your whole life for a day when everything clicks. Today everything clicked.",
+        "Honestly? I stopped thinking and started driving, and that was the whole secret of it.",
     ],
 }
 
@@ -1951,3 +1993,141 @@ PODIUM_ANSWERS = {
         "win_open": ["I stopped wondering whether my line was 'truly' the quickest and just drove the one that kept working. It kept working all day."],
     },
 }
+
+
+# =============================================================================
+# THE RUNDOWN -- a periodic "state of the race" readout.
+# =============================================================================
+# A real booth recaps the order every so often, so a listener who's lost the thread
+# knows where everyone stands. GENERATED from the live standings (so it differs every
+# time the order does); these pools just vary the words around the names, and the
+# builder rotates between a few structural frames. (See colour.call_rundown and
+# director.rundown.)
+
+RUNDOWN_OPENER = [
+    "Let's take stock of the order.",
+    "Quick look at how they're running.",
+    "Where do we stand, then?",
+    "Time for the running order.",
+    "Let me run you through the field.",
+    "A check on the order as it stands.",
+    "Here's how they line up out there.",
+    "Right -- the state of play.",
+    "For those just joining us, the order.",
+]
+RUNDOWN_LEADER = [
+    "{leader} leads",
+    "{leader} out in front",
+    "it's {leader} at the head of it",
+    "{leader} continues to lead",
+    "{leader} sets the pace up front",
+    "{leader} still the one to catch",
+]
+RUNDOWN_POINTS_EDGE = [
+    "{name} clings to the final points place in {pos}",
+    "{name} holds the last of the points in {pos}",
+    "the final point, for now, belongs to {name} in {pos}",
+    "{name} hangs on to {pos} -- the last points-paying spot",
+    "{name} just inside the points in {pos}, and feeling the pressure",
+]
+RUNDOWN_BENNY = [
+    "Funny how the order looks so tidy and the philosophy so messy.",
+    "Half of them don't believe in hierarchy, and yet here we are, ranking them.",
+    "Every one of those places hard-won. Or, in two cases, hard-lost.",
+    "Read it out all you like -- it'll be different by the hairpin.",
+    "Nice and orderly. Give it three laps.",
+    "And not a single one of them content with where they are. Good.",
+]
+
+
+# =============================================================================
+# THE DEBRIEF -- the post-race show, now driven by the race's ACTUAL arcs.
+# =============================================================================
+# The spine of the debrief used to be a handful of fixed lines. These pools give the
+# booth variety, and -- crucially -- the ARC pools below let it tell the story of the
+# fights that actually happened this race (read from the director's RaceMemory), so
+# the show is the PAYOFF of what we watched, different every weekend. (See
+# colour.debrief and colour._race_stories.)
+
+DEBRIEF_WON_DOMINANT = [
+    "Lights to flag, never troubled. {winner} made that look easy, and it never is.",
+    "A controlled masterclass from {winner} -- led every lap and was never seriously asked a question.",
+    "That was {winner} dictating from the front, start to finish. Imperious.",
+    "Untroubled at the front all afternoon. {winner} simply had too much for them.",
+    "{winner} led it from green to chequered. No drama, no mistakes, no answer to it.",
+]
+DEBRIEF_WON_FOUGHT = [
+    "Started on pole, but had to fight for it -- the lead changed hands out there. A proper race.",
+    "{winner} won from the front, but earned every bit of it -- this one was contested.",
+    "Pole to victory, yes, but not a procession. They had to scrap to keep it.",
+    "Led at the start and led at the end, but plenty of heat in between. Hard-won.",
+]
+DEBRIEF_WON_CHARGE = [
+    "From {start} on the grid! That's not luck, that's a drive.",
+    "Up from {start} to win it -- {winner} carved through the field to do it.",
+    "{winner} started {start} and finished first. You don't manage that by accident.",
+    "A win from {start} on the grid. That is a proper, old-fashioned charge.",
+    "From {start} to the top step. {winner} wanted it more than anybody.",
+]
+DEBRIEF_STORY_Q = [
+    "The battles that defined it?",
+    "Story of the race, for you?",
+    "What'll we remember from this one?",
+    "Where was it really won and lost?",
+    "Talk me through the fights, Benny.",
+]
+DEBRIEF_STORY_OPENER = [
+    "Where do I start. A few of them really went at it.",
+    "Plenty, as ever. Let me give you the ones that mattered.",
+    "A couple of proper scraps out there today.",
+    "It wasn't just the win -- the real racing was further back, too.",
+    "Some of these will be talked about for a while.",
+]
+DEBRIEF_ARC_CONTACT = [
+    "{a} and {b} went at it for laps -- and it ended in tears, the pair of them tangling. Inevitable, in the end.",
+    "The fight between {a} and {b} could only end one way, and it did: contact, and a lot of arm-waving.",
+    "{a} and {b} simply could not be separated -- until they separated each other into the scenery. Shame.",
+    "{a} and {b} traded blows until there was a blow too many. That one boiled right over.",
+]
+DEBRIEF_ARC_UNDERCUT = [
+    "{winner} could never get by {loser} on track -- so they went and did it in the pit lane. Clinical.",
+    "{loser} held {winner} up for an age, and paid for it at the stops. The undercut, executed perfectly.",
+    "{winner} couldn't find a way past {loser} wheel-to-wheel, so they won the fight on the timing screen instead.",
+    "All those laps stuck behind {loser}, and {winner} solved it the cold way -- a textbook undercut.",
+]
+DEBRIEF_ARC_EPIC = [
+    "{a} and {b} swapped that place more times than I could count. That's racing at its very best.",
+    "{a} and {b} gave us the fight of the day -- nose to tail, lap after lap, neither giving an inch.",
+    "Go back and watch {a} against {b} again. Wheel to wheel for half the race and clean as you like.",
+    "{a} and {b} put on a show -- a proper, old-fashioned scrap that ran and ran.",
+]
+DEBRIEF_DOTD = [
+    "Has to be {name} -- {gain} made up from the flag. Carved clean through the lot of them.",
+    "Drive of the day's {name} for me -- {gain} gained, and not a scratch on the car.",
+    "{name}, no question. {gain} up on where they started. Relentless.",
+    "Give it to {name} -- {gain} made up. That's a drive you remember.",
+]
+DEBRIEF_CASUALTY_DOUBLE = [
+    "And spare a thought for {a} and {b} -- took each other clean out. That's where it went wrong for two of them.",
+    "{a} and {b} won't want to see the replay -- they ended each other's race in one move.",
+    "The day fell apart for {a} and {b} together -- contact, and both into retirement. Costly.",
+]
+DEBRIEF_CASUALTY_SINGLE = [
+    "{name}'s afternoon ended early, too. The race doesn't forgive much out there.",
+    "Spare a thought for {name} -- out before the flag, and it stings every time.",
+    "{name} didn't see the end of it. One of those days where the race bites back.",
+]
+DEBRIEF_SIGNOFF_PBP = [
+    "From {circuit}, that's all from us. Goodnight!",
+    "That's the lot from {circuit}. Thanks for joining us -- goodnight!",
+    "We'll leave it there from {circuit}. Goodnight, all!",
+    "From all of us at {circuit} -- safe home, and goodnight!",
+]
+DEBRIEF_SIGNOFF_BENNY = [
+    "Same again next week, when this lot will once more agree on absolutely nothing.",
+    "Drive home safe. Unlike that lot.",
+    "Back next time, when they'll find a brand new thing to disagree about at two hundred miles an hour.",
+    "Goodnight. And remember -- whatever they preach, they all still wanted to win.",
+    "Until next week, when philosophy once again loses to a well-timed pit stop.",
+    "Cheerio. Try not to think too hard about any of it.",
+]

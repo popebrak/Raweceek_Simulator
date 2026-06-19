@@ -136,17 +136,23 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
             if runin:
                 quiet_lines = list(runin.turns)
             else:
-                # Weather only earns a remark when it's actually worth one. In the wet
-                # the conditions ARE the story; on a hot or cold day it's worth the odd
-                # mention; on a fair, dry afternoon a real booth would barely bring it
-                # up -- so neither does this one. The rest of the time, they talk racing.
-                ambient = (booth.weather_ambient(report.conditions)
-                           if random.random() < _weather_chatter_chance(report.conditions)
-                           else None)
-                if ambient:
-                    quiet_lines = list(ambient.turns)
+                # Periodically, the booth recaps the running order so a listener knows
+                # where everyone stands -- the director decides when (see rundown()).
+                rundown = director.rundown(report, total_laps)
+                if rundown:
+                    quiet_lines = list(rundown.turns)
                 else:
-                    quiet_lines = list(booth.next_chatter(report.standings, report.lap))
+                    # Weather only earns a remark when it's actually worth one. In the wet
+                    # the conditions ARE the story; on a hot or cold day it's worth the odd
+                    # mention; on a fair, dry afternoon a real booth would barely bring it
+                    # up -- so neither does this one. The rest of the time, they talk racing.
+                    ambient = (booth.weather_ambient(report.conditions)
+                               if random.random() < _weather_chatter_chance(report.conditions)
+                               else None)
+                    if ambient:
+                        quiet_lines = list(ambient.turns)
+                    else:
+                        quiet_lines = list(booth.next_chatter(report.standings, report.lap))
 
             # Same emit rule as a busy lap: show each line, speak it if we can, and
             # only fall back to a timed beat when there's no voice to pace us.
@@ -212,8 +218,11 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     print_timing_sheet(quali_results)
 
     # One booth for the whole weekend -- the shows and the race share its memory, so
-    # the track history set up in the preview isn't repeated mid-race.
+    # the track history set up in the preview isn't repeated mid-race. And one director,
+    # built here so its RaceMemory survives the race and feeds the post-race show -- the
+    # debrief is now the PAYOFF of the arcs the director tracked.
     booth = Booth(track)
+    director = Director(track, booth, RaceMemory())
 
     # The pre-race show: history, the top of the grid, what to watch.
     print(DIVIDER)
@@ -233,13 +242,15 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     if not voiced:
         time.sleep(grid_pause)
     play_race(history, speed=speed, track=track, show_telemetry=show_telemetry,
-              booth=booth, end_pause=end_pause, narrator=narrator)
+              booth=booth, end_pause=end_pause, narrator=narrator, director=director)
 
-    # The post-race show: how it was won, where strategy turned, words from the podium.
+    # The post-race show: how it was won, the fights that defined it (from the arcs the
+    # director tracked), and words from the podium.
     print()
     print(DIVIDER)
     print("  POST-RACE SHOW")
-    _play_show(booth.debrief(summarize_race(history, track), history, track), show_pace, narrator)
+    _play_show(booth.debrief(summarize_race(history, track), history, track, director.memory),
+               show_pace, narrator)
 
 
 def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None,
@@ -259,12 +270,13 @@ def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None
 
     cap = CaptureNarrator()
     booth = Booth(track)
+    director = Director(track, booth, RaceMemory())
     quali_results = run_qualifying(GRID, track)
     cap.script.extend(booth.preview(quali_results, track))
     starting_grid = [d for d, lap, ok in quali_results if ok]
     history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
-    play_race(history, speed=1e9, track=track, booth=booth, narrator=cap)
-    cap.script.extend(booth.debrief(summarize_race(history, track), history, track))
+    play_race(history, speed=1e9, track=track, booth=booth, narrator=cap, director=director)
+    cap.script.extend(booth.debrief(summarize_race(history, track), history, track, director.memory))
 
     eng = make_narrator(engine)
     if not eng.available:

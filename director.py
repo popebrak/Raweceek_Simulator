@@ -59,6 +59,12 @@ START_JUMP_WORTH = 3      # a launch this big gets called even from outside the 
 LAP_BUDGET = 3            # optional beats voiced on a normal racing lap
 START_BUDGET = 4          # ...and on the opening lap, where a flurry of getaways is realistic
 
+# --- The rundown -------------------------------------------------------------
+# How often the booth recaps the running order on a quiet lap, and how far from the
+# flag to stop (the closing laps belong to the run-in, which builds its own tension).
+RUNDOWN_MIN_GAP = 9       # laps between order readouts
+RUNDOWN_SKIP_FINAL = 6    # leave the closing laps to the run-in
+
 # --- Memory ------------------------------------------------------------------
 # A battle quiet for longer than this is no longer "ongoing"; if the pair start
 # trading again after such a lull, that's a REIGNITION the booth calls back. Wider
@@ -167,6 +173,7 @@ class RaceMemory:
         self.pursuit = {}         # frozenset(pair) -> consecutive close-running laps (the streak)
         self.passes = []          # every pass the director was shown, in order (the truthful log)
         self.spoken = 0           # total beats actually voiced (for pacing stats)
+        self.last_rundown_lap = 0 # the lap of the most recent state-of-the-race readout
 
     def arc_for(self, pair):
         return self.arcs.get(pair)
@@ -234,6 +241,25 @@ class Director:
         kept.sort(key=lambda c: c.salience, reverse=True)
         self.memory.spoken += len(kept)
         return [c.beat for c in kept]
+
+    def rundown(self, report, total_laps):
+        """A periodic 'state of the race' readout for a QUIET lap (main reaches for it
+        before the philosophy chatter). The booth recaps the order so a listener knows
+        where everyone stands. Cadence is the director's call -- not too often, not on
+        lap one, and never in the closing laps (those belong to the run-in). Returns a
+        Beat or None. The WORDS, and their variety, are the booth's job (call_rundown)."""
+        lap = report.lap
+        if lap <= 1 or total_laps - lap < RUNDOWN_SKIP_FINAL:
+            return None
+        if lap - self.memory.last_rundown_lap < RUNDOWN_MIN_GAP:
+            return None
+        if sum(1 for s in report.standings if not s.retired) < 4:
+            return None
+        bit = self.booth.call_rundown(report.standings, lap, total_laps)
+        if not bit:
+            return None
+        self.memory.last_rundown_lap = lap
+        return Beat(tuple(bit.turns), intensity=1, kind="rundown")
 
     # --- helpers -------------------------------------------------------------
     def _worth(self, ov):
@@ -444,6 +470,7 @@ class Director:
             arc = self._live_arc(frozenset((uc.undercutter, uc.victim)), report.lap)
             if arc is not None:
                 arc.resolved = "undercut"
+                arc.leader = uc.undercutter       # the winner ends ahead -- the debrief reads this
                 beat = Beat((("pbp", self.booth.call_battle_undercut(uc)),), 3, "undercut")
                 cands.append(Candidate(beat, SAL_UNDERCUT_SETTLE, mandatory=True))
             else:
