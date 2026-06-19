@@ -184,6 +184,41 @@ PENALTY_CHARACTER = {
 # -----------------------------------------------------------------------------
 
 
+# --- Safety car / neutralisations -------------------------------------------
+# The first of the race-control family (VSC and the red flag will reuse this same
+# machinery with a harder bite). A big incident can bring out the SAFETY CAR: the
+# field BUNCHES -- gaps erased, a twenty-second lead gone in an instant -- then crawls
+# a few laps behind the car with no overtaking, then a ROLLING RESTART back to green.
+#
+# The strategic heart, and why it's drama and not just a delay: stops are CHEAP while
+# the whole field is slow, so the cars whose window is near dive in at once -- and
+# whoever already paid full price for their stop watches the advantage evaporate. In a
+# time-based engine, bunching is just recomputing total_time single-file; that one
+# operation is most of the story.
+SC_LAPS = 3              # crawl laps behind the safety car before the restart
+SC_PACE_FACTOR = 1.40    # a caution lap takes this multiple of the green lap time
+SC_GAP = 0.8             # bunched spacing between cars, in seconds
+SC_PIT_LOSS = 9.0        # a stop UNDER CAUTION -- far cheaper than the green PIT_LOSS
+SC_COOLDOWN = 6          # laps after a caution ends before another can be called
+CAUTION_MIN_STINT = 4    # don't grab a cheap stop if you only just pitted
+CAUTION_STOP_BASE = 0.35 # per caution lap: base chance of taking the cheap stop...
+CAUTION_STOP_STRAT = 0.5 # ...plus this, scaled by strategy (the planners pounce)
+
+# What brings the safety car out, by how serious the incident was. Calibrated so a
+# caution shows up in roughly a third of races: the lone Objectivist offs rarely
+# warrant one; a two-car collision often does. (Tuned on the Monte Carlo harness.)
+SC_TRIGGER_COLLISION = 0.45   # a multi-car collision that retires someone
+SC_TRIGGER_SOLO = 0.16        # a major solo retirement -- a car stricken on track
+SC_TRIGGER_OVERLIMIT = 0.05   # an Objectivist binning it alone -- usually harmless
+
+# The rolling restart concertinas the field: a small, racecraft-weighted shuffle as
+# they jostle for the green, so a bunched restart actually produces racing.
+RESTART_SPREAD = 0.40    # gaussian sigma of the restart jostle, in seconds
+RESTART_SKILL = 0.5      # how much racecraft helps you time the restart
+RESTART_CAP = 1.0        # clamp, so nobody teleports up the order
+# -----------------------------------------------------------------------------
+
+
 @dataclass(frozen=True)
 class Compound:
     name: str
@@ -439,6 +474,18 @@ class Undercut:
 
 
 @dataclass
+class Caution:
+    """A neutralisation period. For now only the safety car; the VSC and the red flag
+    will reuse this with a different `kind` and a harder bite. `status` walks the phase
+    the booth follows: deploy (the SC comes out, the field bunches) -> running (the
+    crawl) -> restart (green again)."""
+    kind: str            # "safety_car" (later "vsc" | "red_flag")
+    status: str          # "deploy" | "running" | "restart"
+    cause: str = ""      # what brought it out (a name, or "collision")
+    lap: int = 0         # the lap it was deployed
+
+
+@dataclass
 class LapReport:
     lap: int
     standings: list = field(default_factory=list)   # list[Standing]
@@ -451,6 +498,7 @@ class LapReport:
     reclassified: list = field(default_factory=list)  # [(name, provisional_pos, official_pos)] -- set on the FINAL lap only
     conditions: Conditions = None                   # the weather this lap was run in
     weather_change: str = ""                        # set on a threshold crossing: "rain_begins" etc.
+    caution: "Caution" = None                       # set when this lap is run under (or into) a neutralisation
 
 
 def simulate_lap(driver, track):
@@ -869,6 +917,72 @@ def _wants_undercut(car, ahead, gap, lap):
     return random.random() < car.driver.strategy      # the planners pounce
 
 
+# --- Safety-car mechanics ----------------------------------------------------
+def _sc_lap_time(track):
+    """A lap behind the safety car -- a fixed slow crawl, scaled to the track."""
+    return track.base_lap_time * SC_PACE_FACTOR
+
+
+def _bunch_field(running):
+    """The heart of it: collapse the field single-file behind the leader, preserving
+    ORDER but erasing the gaps. `running` is already sorted by total_time, so we just
+    re-space everyone SC_GAP apart from the leader's clock. A twenty-second lead is
+    gone in this one line -- which is the whole drama of a safety car."""
+    if not running:
+        return
+    leader_t = running[0].total_time
+    for i, car in enumerate(running):
+        car.total_time = leader_t + i * SC_GAP
+
+
+def _restart_scramble(running):
+    """The rolling restart concertinas the field. A small, racecraft-weighted jostle as
+    they time the green -- enough to make a bunched restart produce racing, gentle enough
+    that nobody teleports up the order."""
+    for car in running:
+        jitter = random.gauss(0, RESTART_SPREAD) - (car.driver.racecraft - 0.5) * RESTART_SKILL
+        car.total_time += max(-RESTART_CAP, min(RESTART_CAP, jitter))
+
+
+def _wants_caution_stop(car):
+    """Should this car grab the cheap stop while the field is neutralised? Yes if it
+    still has a planned stop to bring forward and isn't fresh from the pits -- the
+    discount makes pulling it forward almost always worth it, so the planners pounce
+    and even the chargers usually take the gift."""
+    if car.pit_count >= len(car.plan.pit_laps):
+        return False                              # no planned stop left to bring forward
+    if car.stint_laps < CAUTION_MIN_STINT:
+        return False                              # just pitted -- don't double-dip
+    return random.random() < CAUTION_STOP_BASE + CAUTION_STOP_STRAT * car.driver.strategy
+
+
+def _sc_trigger_chance(incidents):
+    """How likely THIS lap's incidents are to bring out the safety car -- a two-car
+    collision often does, a lone car stricken on track sometimes, an Objectivist
+    spinning off harmlessly rarely. Returns the worst (highest) chance among them."""
+    chance = 0.0
+    for inc in incidents:
+        if inc.cause == "collision" and (inc.retirement or inc.other_retired):
+            chance = max(chance, SC_TRIGGER_COLLISION)
+        elif inc.retirement and inc.cause == "over the limit":
+            chance = max(chance, SC_TRIGGER_OVERLIMIT)
+        elif inc.retirement:
+            chance = max(chance, SC_TRIGGER_SOLO)
+    return chance
+
+
+def _sc_cause_label(incidents):
+    """A short label for the booth: a collision if there was one, else the name of the
+    car that's gone off (so the call can say whose accident brought it out)."""
+    for inc in incidents:
+        if inc.cause == "collision" and (inc.retirement or inc.other_retired):
+            return "collision"
+    for inc in incidents:
+        if inc.retirement:
+            return inc.driver_name
+    return "incident"
+
+
 def run_race(starting_grid, track, laps=None, difficulty=None):
     # The track supplies the race distance and how hard it is to pass; either can
     # still be overridden by hand (handy for testing).
@@ -910,6 +1024,17 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
     # grid-based spread, so the clock and track position now mean distinct things
     # and the lap loop below knows who is where from lap 1 onward.
     start_events = _run_start(cars)
+
+    # Neutralisation state. caution_left counts crawl laps remaining (0 = green);
+    # restart_next flags the green lap that follows the crawl; pending_cause is set by a
+    # big incident and brings the safety car out on the NEXT lap (it takes a lap to
+    # deploy). last_caution_lap drives the cooldown between cautions.
+    caution_left = 0
+    restart_next = False
+    sc_cause = ""
+    sc_deploy_lap = 0
+    pending_cause = None
+    last_caution_lap = -SC_COOLDOWN
 
     for lap in range(1, laps + 1):
         cond = conditions_by_lap[lap - 1]
@@ -956,6 +1081,61 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                     car.retired, car.retired_on_lap, car.dsq = True, lap, True
         # A DSQ drops a car out, so re-read the order before pacing the lap.
         running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
+
+        # --- Race control: what PHASE is this lap? ---------------------------
+        # Green by default. A pending incident brings the safety car out now (bunching
+        # the field); a finished crawl restarts to green; otherwise we keep crawling.
+        caution = None
+        phase = "green"
+        if restart_next:
+            phase = "restart"
+            restart_next = False
+            _restart_scramble(running)
+        elif pending_cause is not None and caution_left == 0:
+            phase = "deploy"
+            sc_cause, sc_deploy_lap = pending_cause, lap
+            caution_left = SC_LAPS
+            _bunch_field(running)
+        elif caution_left > 0:
+            phase = "caution"
+        pending_cause = None
+
+        # --- A neutralised lap: the field crawls behind the safety car, takes the
+        # cheap stop if the window's right, and does NO racing. ---------------
+        if phase in ("deploy", "caution"):
+            caution = Caution("safety_car", "deploy" if phase == "deploy" else "running",
+                              sc_cause, sc_deploy_lap)
+            sc_time = _sc_lap_time(track)
+            needed = _needed_family(cond.wetness)
+            for car in running:
+                car.stint_laps += 1
+                old_total = car.total_time
+                time_lost = 0.0
+                if needed == "slick" and _wants_caution_stop(car):
+                    old_stint = car.stint_laps
+                    car.pit_count += 1
+                    car.stops_made += 1
+                    car.compound = car.plan.compounds[car.pit_count]
+                    car.stint_laps = 0
+                    time_lost += SC_PIT_LOSS
+                    pit_stops.append(PitStop(car.driver.name, lap, car.stops_made,
+                                             old_stint, car.compound.name))
+                    time_lost = _serve_pending(car, time_lost, pit_stops[-1])
+                car.total_time = old_total + sc_time + time_lost
+                car.last_lap = car.total_time - old_total
+            caution_left -= 1
+            if caution_left == 0:
+                restart_next = True
+                last_caution_lap = lap
+            history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops,
+                                     investigations=investigations, penalties=penalties,
+                                     conditions=cond, weather_change=weather_change,
+                                     caution=caution))
+            continue
+
+        if phase == "restart":
+            caution = Caution("safety_car", "restart", sc_cause, sc_deploy_lap)
+            sc_cause = ""
 
         # Pre-lap gap to the car directly ahead (race-time, from last lap's totals).
         # This is the 'am I stuck behind someone?' signal the undercut decision reads.
@@ -1145,9 +1325,19 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
 
             car.last_lap = car.total_time - old_total
 
+        # Did this lap's racing bring the safety car out? Only if we're green and clear
+        # of a cooldown, and there's room left to neutralise AND restart before the flag.
+        if (caution_left == 0 and not restart_next
+                and lap - last_caution_lap >= SC_COOLDOWN
+                and laps - lap >= SC_LAPS + 2):
+            chance = _sc_trigger_chance(incidents)
+            if chance and random.random() < chance:
+                pending_cause = _sc_cause_label(incidents)
+
         history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops,
                                  investigations=investigations, penalties=penalties,
-                                 conditions=cond, weather_change=weather_change))
+                                 conditions=cond, weather_change=weather_change,
+                                 caution=caution))
 
     # Stewards' time penalties NOT served at a stop are applied at the FLAG, which can
     # reshuffle the final order -- the 'crosses the line third, classified fifth' drama.
@@ -1202,6 +1392,7 @@ class RaceSummary:
     undercuts_count: int = 0   # passes completed in the pit lane (the undercut)
     penalties: list = field(default_factory=list)   # [(name, offence, kind, lap)] -- verdicts handed down
     reclassified: list = field(default_factory=list)  # [(name, provisional_pos, official_pos)] at the flag
+    cautions: int = 0          # how many safety-car periods the race saw
 
 
 UNDERCUT_WINDOW = 6     # the rival must stop within this many laps for the move to count
@@ -1336,6 +1527,10 @@ def summarize_race(history, track):
                  for rep in history for p in rep.penalties if not p.served]
     reclassified = list(history[-1].reclassified)
 
+    # Safety-car periods: each one is marked by a single 'deploy' lap.
+    cautions = sum(1 for rep in history
+                   if rep.caution and rep.caution.status == "deploy")
+
     return RaceSummary(
         circuit=track.circuit,
         total_laps=total_laps, starters=starters, finishers=finishers,
@@ -1350,4 +1545,5 @@ def summarize_race(history, track):
         undercuts_count=undercuts_count,
         penalties=penalties,
         reclassified=reclassified,
+        cautions=cautions,
     )

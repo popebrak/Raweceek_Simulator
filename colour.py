@@ -50,7 +50,10 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   DEBRIEF_STORY_Q, DEBRIEF_STORY_OPENER, DEBRIEF_ARC_CONTACT,
                   DEBRIEF_ARC_UNDERCUT, DEBRIEF_ARC_EPIC, DEBRIEF_DOTD,
                   DEBRIEF_CASUALTY_DOUBLE, DEBRIEF_CASUALTY_SINGLE,
-                  DEBRIEF_SIGNOFF_PBP, DEBRIEF_SIGNOFF_BENNY)
+                  DEBRIEF_SIGNOFF_PBP, DEBRIEF_SIGNOFF_BENNY,
+                  # race control -- the safety car
+                  SAFETY_CAR_PBP, SAFETY_CAR_COLOUR, RESTART_PBP, RESTART_COLOUR,
+                  DEBRIEF_CAUTION)
 
 _DRIVER_BY_NAME = {d.name: d for d in GRID}
 
@@ -748,6 +751,28 @@ class Booth:
             turns.append(("colour", self._fresh("_rundown_benny", RUNDOWN_BENNY)))
         return banter(turns)
 
+    # --- race control: the safety car ---------------------------------------
+    def call_safety_car(self, caution):
+        """The deployment call -- the biggest headline a race throws up. Phill scrambles
+        it; Benny reads the strategic carnage (gaps wiped, the cheap-stop rush)."""
+        if caution.cause == "collision":
+            cause_phrase = "that collision"
+        elif caution.cause and caution.cause != "incident":
+            cause_phrase = f"{caution.cause}'s accident"
+        else:
+            cause_phrase = "an incident on track"
+        return banter([
+            ("pbp", self._fresh("_sc_pbp", SAFETY_CAR_PBP).format(cause_phrase=cause_phrase)),
+            ("colour", self._fresh("_sc_colour", SAFETY_CAR_COLOUR)),
+        ])
+
+    def call_restart(self, caution):
+        """The rolling restart -- green again, the field nose to tail. The crescendo."""
+        return banter([
+            ("pbp", self._fresh("_restart_pbp", RESTART_PBP)),
+            ("colour", self._fresh("_restart_colour", RESTART_COLOUR)),
+        ])
+
     # --- the shows: off-clock segments before and after the race ------------
     def preview(self, quali, track):
         """The 'Countdown to Green': set the scene, the track's history, the top of
@@ -834,6 +859,10 @@ class Booth:
         elif s.retirements:
             turns.append(("colour", self._fresh("_debrief_cas_single",
                           DEBRIEF_CASUALTY_SINGLE).format(name=s.retirements[0][0])))
+
+        # The safety car, if it had its say -- a race-defining reset worth a word.
+        if getattr(s, "cautions", 0):
+            turns.append(("colour", self._fresh("_debrief_caution", DEBRIEF_CAUTION)))
 
         # The podium interview -- unchanged: a real give-and-take in each driver's voice.
         podium = s.podium[:3]

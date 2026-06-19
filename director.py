@@ -102,6 +102,8 @@ SALIENCE_REIGNITION = 25      # a remembered fight coming back to life
 SALIENCE_PER_GAINED = 6       # a big launch off the line earns its call
 
 SAL_WEATHER = 120             # a weather call is the headline -- it leads the lap
+SAL_SAFETY_CAR = 130          # ...and a safety car is a bigger one still -- it leads everything
+SAL_RESTART = 110             # the green-flag restart -- a crescendo above the racing
 SAL_RETIREMENT = 90           # someone's race is over
 SAL_BATTLE_CONTACT = 85       # a tracked fight ends in contact
 SAL_UNDERCUT_SETTLE = 80      # an undercut settles a fight they couldn't win on track
@@ -220,15 +222,42 @@ class Director:
         Gathering ORDER matters (it drives the arc bookkeeping): pursuits are observed
         first, then incidents resolve fight-ending CONTACT, then passes update the
         arcs, then undercuts resolve fights won in the pits. The SPOKEN order is then
-        re-sorted by salience, independent of the bookkeeping order."""
+        re-sorted by salience, independent of the bookkeeping order.
+
+        Under a NEUTRALISATION there is no racing: a crawling lap produces only the
+        deploy headline and the cheap-stop scramble, and we don't observe pursuits (a
+        bunched, parked field isn't a fight). The restart lap is green again, so the
+        full machinery resumes -- and the bunched field it inherits feeds the pursuit
+        arcs all on its own."""
+        caution = getattr(report, "caution", None)
+        if caution is not None and caution.status in ("deploy", "running"):
+            cands = self._caution_candidates(report)
+            cands += self._pit_candidates(report)        # the cheap-stop rush still calls
+            return self._assemble(cands, report.lap)
+
         self.observe(report)
-        cands = []
+        cands = self._caution_candidates(report)         # the restart crescendo, if this is one
         cands += self._weather_candidates(report)
         cands += self._incident_candidates(report, telemetry)
         cands += self._steward_candidates(report)
         cands += self._overtake_candidates(report)
         cands += self._pit_candidates(report)
         return self._assemble(cands, report.lap)
+
+    def _caution_candidates(self, report):
+        """The safety car as commentary: the deployment is the loudest headline on the
+        board, the restart a crescendo back to green. The crawl laps in between say
+        nothing here (the booth fills them from the quiet-lap path)."""
+        c = getattr(report, "caution", None)
+        if c is None:
+            return []
+        if c.status == "deploy":
+            beat = Beat(tuple(self.booth.call_safety_car(c).turns), 3, "caution")
+            return [Candidate(beat, SAL_SAFETY_CAR, mandatory=True)]
+        if c.status == "restart":
+            beat = Beat(tuple(self.booth.call_restart(c).turns), 3, "caution")
+            return [Candidate(beat, SAL_RESTART, mandatory=True)]
+        return []
 
     def _assemble(self, cands, lap):
         """Mandatory beats always make it; optional beats compete for the budget. Then

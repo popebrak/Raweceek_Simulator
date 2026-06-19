@@ -2131,3 +2131,47 @@ DEBRIEF_SIGNOFF_BENNY = [
     "Until next week, when philosophy once again loses to a well-timed pit stop.",
     "Cheerio. Try not to think too hard about any of it.",
 ]
+
+
+# =============================================================================
+# RACE CONTROL -- the safety car (the first of the neutralisation family).
+# =============================================================================
+# Deployment is the biggest headline a race throws up -- it wipes every gap and
+# reshuffles the strategy -- so it leads the lap; the restart is the crescendo back to
+# green. {cause_phrase} is built by the booth from what brought it out. (See
+# colour.call_safety_car / call_restart and director._caution_candidates.)
+
+SAFETY_CAR_PBP = [
+    "SAFETY CAR! SAFETY CAR! They're scrambling it for {cause_phrase}!",
+    "And here comes the safety car -- {cause_phrase}, and the field bunches right up!",
+    "Safety car deployed! Every gap wiped in an instant -- {cause_phrase} has done it!",
+    "The boards are out -- SAFETY CAR! It's out for {cause_phrase}!",
+    "Caution, caution -- the safety car is out for {cause_phrase}!",
+]
+SAFETY_CAR_COLOUR = [
+    "And THAT changes everything. Whoever was leading by miles just lost the lot.",
+    "Here's the moment the race resets. Anyone due a stop dives in now -- it's half price under this.",
+    "Cruel for the leader, this. All that work, gone -- and a gift for anyone who hadn't stopped.",
+    "Free pit stop for half the grid, near enough. Watch the lane -- it'll be chaos.",
+    "Twenty seconds of lead, gone in a lap. That's the safety car for you. Brutal.",
+]
+RESTART_PBP = [
+    "Safety car peeling in -- and we are GREEN! Green, green, green -- racing again!",
+    "The lights go out on the safety car -- GREEN FLAG! And they are nose to tail!",
+    "Here we go -- the restart is ON! Green, and it's a free-for-all into the first corner!",
+    "Safety car in this lap -- and RACING resumes! Bunched up and ready to scrap!",
+    "GREEN! The race is back on, and there's barely a car-length between any of them!",
+]
+RESTART_COLOUR = [
+    "Right, hold on to something. Everyone's within a second -- this'll be carnage or genius.",
+    "This is where races turn. Cold tyres, no gaps, everyone with a sniff. Lovely.",
+    "Now we see who timed it. At a restart, the brave ones eat the timid ones.",
+    "No hiding now. That cushion at the front? Gone. They have to earn it all over again.",
+    "Bunched like that, the next two corners are worth ten normal laps. Watch.",
+]
+DEBRIEF_CAUTION = [
+    "And the safety car had its say, of course -- reset the whole thing and made them race it out again.",
+    "Don't forget the caution -- it wiped the leader's gap and turned a procession into a fight.",
+    "That safety car was the hinge of the race. Half of what came before barely mattered after it.",
+    "The neutralisation changed everyone's afternoon -- some it saved, some it robbed.",
+]
