@@ -29,7 +29,8 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   GENERIC_INCIDENT, GENERIC_OVERTAKE, GENERIC_PIT,
                   Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK,
                   # the calls -- Phill's factual lines, now owned by the booth
-                  START_CALLS, OVERTAKE_CALLS, BATTLE_CALLS, SOLO_RETIRE,
+                  START_CALLS, OVERTAKE_CALLS, BATTLE_CALLS, BATTLE_REIGNITE,
+                  BATTLE_CONTACT, BATTLE_UNDERCUT, SOLO_RETIRE,
                   OVERLIMIT_CALLS, DAMAGE_FAIL_CALLS, COLLISION_CALLS,
                   CAUSE_PHRASE, SOLO_FLOURISH, CONTACT_WORD, PIT_CALLS, UNDERCUT_CALLS,
                   # the stewards -- penalty calls and Benny's colour
@@ -355,6 +356,29 @@ class Booth:
         bucket = "lead" if ov.position == 1 else "podium" if ov.position <= 3 else "points"
         return self._fresh(f"_ot_{bucket}", OVERTAKE_CALLS[bucket]).format(
             driver=ov.passer, other=ov.passed, pos=pos_ord, at=at)
+
+    def call_battle_callback(self, ov, laps_since):
+        """Phill's callback line for a fight that reignites after going quiet -- the
+        director spotted a pair it has seen scrapping before (see director.py). The
+        booth only supplies the WORDS; the recognition is the narrative layer's job."""
+        at = _at(ov.location)
+        return self._fresh("_battle_reignite", BATTLE_REIGNITE).format(
+            driver=ov.passer, other=ov.passed, at=at, ago=_spell(laps_since),
+            pos=_ord(ov.position))
+
+    def call_battle_contact(self, inc):
+        """Phill's lead-in when a fight the director has been tracking ends in contact.
+        The mechanical collision call (who's out) follows from call_incident; this just
+        names the crash as the climax of a battle, not a random coming-together."""
+        at = _at(inc.location)
+        return self._fresh("_battle_contact", BATTLE_CONTACT).format(
+            driver=inc.driver_name, other=inc.other_name, at=at)
+
+    def call_battle_undercut(self, uc):
+        """Phill's call when an undercut settles a fight the cars couldn't resolve on
+        track -- a standalone, arc-aware version of call_undercut (it replaces it)."""
+        return self._fresh("_battle_undercut", BATTLE_UNDERCUT).format(
+            driver=uc.undercutter, other=uc.victim, pos=_ord(uc.position))
 
     def _call_start(self, ov):
         """The getaway off the line, scaled by how big the launch was."""

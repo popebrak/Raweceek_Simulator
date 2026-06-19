@@ -14,55 +14,19 @@ from collections import deque
 from drivers import GRID
 from tracks import CALENDAR, track_by_circuit
 from simulation import run_qualifying, run_race, summarize_race
-from display import (print_timing_sheet, render_standings, render_telemetry,
+from display import (print_timing_sheet, render_standings,
                      render_result, render_summary, track_banner)
 from colour import Booth, voice, voice_show
+from director import Director, RaceMemory
 from narration import make_narrator, SilentNarrator
 
 CLEAR_SCREEN = "\033[H\033[J"
 COMMENTARY_LINES = 12        # how many recent commentary lines stay on screen
-NOTABLE_OVERTAKE = 3         # baseline: call passes for this position or better; hard tracks widen it
 DIVIDER = "  " + "-" * 60
 
-# What's actually worth interrupting for. A real booth doesn't call every move and
-# every stop -- it calls what matters for the result. F1 scores the top ten, so a
-# pass outside the points rarely makes the broadcast; a midfield pit stop never
-# does. These three dials are where that judgement lives.
-POINTS_POSITIONS = 10        # passes below this rarely matter -- the points are the story
-PIT_CALL_POSITION = 6        # only the sharp end's stops are worth a mention
-START_JUMP_WORTH = 3         # a launch this big gets called even from outside the points
-PIT_COLOUR = 0.30            # chance the colour man adds a dry word to a called pit stop
-
-
-# How readily a survivable incident interrupts the racing. Anything that CHANGES the
-# race -- a retirement, any contact, a major moment -- is always called (below). These
-# two dials cover the rest: a scruffy-but-survived moment, and a harmless off. Keeping
-# the harmless ones mostly silent is the principle in action -- the racing is the show,
-# and we don't stop it (or wheel out the philosophy) for a lock-up that cost nothing.
-MODERATE_INCIDENT_CALL = 0.5     # a real wobble, time lost: called about half the time
-MINOR_INCIDENT_CALL = 0.12       # a harmless off: mostly stays silent
-
-
-def _incident_worth(inc):
-    """Is this incident worth interrupting the racing for? Race-changing ones always
-    are; a scruffy moment about half the time; a harmless off, rarely."""
-    if inc.retirement or inc.other_retired:
-        return True                              # someone's out -- always the story
-    if inc.cause == "collision":
-        return True                              # contact is always a moment
-    if inc.severity == "major":
-        return True                              # a huge one, even if they survive it
-    if inc.severity == "moderate":
-        return random.random() < MODERATE_INCIDENT_CALL
-    return random.random() < MINOR_INCIDENT_CALL
-
-
-def _overtake_worth(ov, notable_pos):
-    """Is this pass worth a call? The lead and podium always are; elsewhere it has
-    to be for a points place (or, off the line, a genuine flier) to make the feed."""
-    if ov.location == "the start":
-        return ov.position <= POINTS_POSITIONS or ov.places_gained >= START_JUMP_WORTH
-    return ov.position <= min(notable_pos, POINTS_POSITIONS)
+# What's actually worth interrupting for now lives in the director (director.py) --
+# which passes, incidents, stops, and undercuts make the broadcast, and how they're
+# paced, is a narrative judgement. main.py just plays back what the director hands it.
 
 
 def _weather_chatter_chance(cond):
@@ -79,20 +43,15 @@ def _weather_chatter_chance(cond):
 
 
 def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_pause=8.0,
-              narrator=None):
+              narrator=None, director=None):
     total_laps = len(history)
     commentary = deque(maxlen=COMMENTARY_LINES)   # the rolling buffer
     if booth is None:                              # the two voices: Phill (calls) & Benny (colour)
         booth = Booth(track)                       # shared with the pre/post-race shows when passed in
     if narrator is None:                           # no audio unless one is handed in
         narrator = SilentNarrator()
-
-    # Which passes are worth a call depends on the circuit. Where passing is hard
-    # (Monaco, Suzuka) even a midfield move is an event, so we call deeper into the
-    # field; where it's cheap (Monza) we keep it to the fight for the front.
-    notable_pos = NOTABLE_OVERTAKE
-    if track is not None:
-        notable_pos += round(track.overtaking_difficulty * 10)
+    if director is None:                           # the narrative layer: memory, arcs, pacing
+        director = Director(track, booth, RaceMemory())
 
     def draw(report):
         if narrator.capture:        # record-only render: no terminal output at all
@@ -116,7 +75,6 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         # separate stream that never contaminates the feed a TTS engine reads.
         # Every spoken line is now stamped with a speaker (voice()): Phill makes the
         # factual call, Benny reacts -- and a Bit can be a whole exchange between them.
-        pos_of = {s.name: s.position for s in report.standings}
         new_lines = []        # each item is (role, text); role None = shown, never spoken
 
         def say(role, text):
@@ -139,19 +97,17 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
             if wbit:
                 play(wbit)
 
-        # Incidents: gate the trivial ones out entirely (no call, no quip), so a
-        # harmless lock-up doesn't stop the show. The booth speaks the rest.
-        for inc in report.incidents:
-            if not _incident_worth(inc):
-                continue
-            say("pbp", booth.call_incident(inc))
-            if show_telemetry:
-                tele = render_telemetry(inc).strip()
-                if tele:
-                    new_lines.append((None, f"        {tele}"))
-            bit = booth.for_incident(inc)           # Benny's take on the moment
-            if bit:
-                play(bit)
+        # The director watches the whole lap, event or not: it updates its battle
+        # arcs from the timing tower (cars locked nose-to-tail in a pursuit), so what
+        # follows can recognise a crash or an undercut as the END of a fight.
+        director.observe(report)
+
+        # Incidents go through the director too now. It gates the trivial ones out --
+        # and, the cross-type win, when a collision ends a fight it has been tracking,
+        # it calls the crash as that battle's climax. Telemetry stays an opt-in debug
+        # annotation, threaded through the director but never spoken.
+        for beat in director.incidents(report, telemetry=show_telemetry):
+            play(beat)
         # The stewards. A NOTICE the lap of the offence ("under investigation"), then
         # a VERDICT a lap or two on -- read out, with Benny's word on what it costs.
         # A drive-through or stop-go is called as it's served down the lane.
@@ -165,28 +121,18 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
                 bit = booth.for_penalty(pen)        # what it means for the race
                 if bit:
                     play(bit)
-        # Call the passes worth calling -- the lead and podium always, points places
-        # selectively, and a real flier off the line. Midfield churn stays silent.
-        # The booth collapses two cars trading a place into one ongoing-battle call.
-        for ov in report.overtakes:
-            if _overtake_worth(ov, notable_pos):
-                say("pbp", booth.call_overtake(ov, report.lap))
-                bit = booth.for_overtake(ov)        # the history behind the move
-                if bit:
-                    play(bit)
-        # Pit stops: only the sharp end's are worth interrupting for -- a midfield
-        # car ducking in reshuffles nothing the viewer is watching.
-        for ps in report.pit_stops:
-            if pos_of.get(ps.driver_name, 99) <= PIT_CALL_POSITION:
-                say("pbp", booth.call_pit(ps))
-                if random.random() < PIT_COLOUR:     # now and then, a dry word on the gamble
-                    bit = booth.for_pit(ps)
-                    if bit:
-                        play(bit)
-        # An undercut completes on the victim's stop lap -- always worth calling, it
-        # IS the strategic story -- so it goes in right after the stop that made it.
-        for uc in report.undercuts:
-            say("pbp", booth.call_undercut(uc))
+        # Passes now go through the DIRECTOR -- the narrative layer. It owns which
+        # passes are worth calling, tracks battles as developing arcs, calls back a
+        # fight it has seen before, and paces the lap to an attention budget (so a
+        # busy lap calls the moves that matter rather than every one). It hands back
+        # ordered Beats, which play exactly like a Bit of banter.
+        for beat in director.overtakes(report):
+            play(beat)
+        # Pit stops and undercuts go through the director: routine stops at the sharp
+        # end get a call, and an undercut that settles a fight the cars couldn't win on
+        # track is named as exactly that -- and closes the arc.
+        for beat in director.pits(report):
+            play(beat)
 
         # The flag: on the final lap the winner's moment always gets called, AFTER
         # whatever else happened, so the race never ends on silence.

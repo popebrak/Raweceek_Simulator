@@ -296,6 +296,36 @@ BATTLE_CALLS = {
                 "They are putting on a SHOW -- {driver} ahead of {other} again, and neither will yield!"],
 }
 
+# The CALLBACK: a fight that went quiet several laps ago flares up again. This is the
+# director's MEMORY made audible -- it only fires when the narrative layer recognises
+# a pair it has seen scrapping before, after enough of a lull that "again" would be a
+# lie. {ago} is the spelled number of laps since they last traded. (See director.py.)
+BATTLE_REIGNITE = [
+    "These two AGAIN! {driver} and {other} were at this {ago} laps back -- and here we go once more!",
+    "We have seen this fight before! {driver} renews it with {other}{at} -- the rematch is ON!",
+    "Remember these two earlier? That simmering scrap from {ago} laps ago reignites -- {driver} back ahead of {other}!",
+    "Round two -- {driver} and {other} pick up exactly where they left off, and it's {driver} in front!",
+    "Back on it! The battle between {driver} and {other} we saw {ago} laps ago has flared right back up!",
+]
+
+# The two ways a tracked fight can END across event types -- the director recognises
+# the pair and reaches for these (see director.py). CONTACT is a lead-in: the booth's
+# normal collision call (who's actually out) follows it. UNDERCUT is a standalone
+# call -- it replaces the plain undercut line when the move settles a fight the cars
+# couldn't resolve on track.
+BATTLE_CONTACT = [
+    "And it's ended in CONTACT! That fight between {driver} and {other} has finally boiled over{at}!",
+    "There it is -- the scrap we've been watching ends in tears! {driver} and {other} collide{at}!",
+    "They couldn't keep doing this forever -- {driver} and {other} come together{at}, and the battle is OVER!",
+    "Too close for too long -- and {driver} and {other} make contact at last{at}!",
+]
+BATTLE_UNDERCUT = [
+    "And the fight is settled in the PIT LANE! {driver} couldn't pass {other} on track -- so the undercut does it, into {pos}!",
+    "{driver} beats {other} the only way left after all those laps stuck behind -- a clean undercut, up into {pos}!",
+    "Couldn't do it wheel-to-wheel, so {driver} does it on the pit wall! Ahead of {other} and into {pos}!",
+    "That's how you break a deadlock! {driver} undercuts {other} -- the fight they couldn't win on track, won in the stops, into {pos}!",
+]
+
 # Solo errors -- a cause phrasing (CAUSE_PHRASE) plus, when the car survives, a
 # severity flourish (SOLO_FLOURISH); when it ends the race, a retirement tag.
 SOLO_RETIRE = ["{driver} {phrase}{at} -- a {severity} one, and THAT is the end of their race!",
