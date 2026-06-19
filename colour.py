@@ -32,6 +32,9 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   START_CALLS, OVERTAKE_CALLS, BATTLE_CALLS, SOLO_RETIRE,
                   OVERLIMIT_CALLS, DAMAGE_FAIL_CALLS, COLLISION_CALLS,
                   CAUSE_PHRASE, SOLO_FLOURISH, CONTACT_WORD, PIT_CALLS, UNDERCUT_CALLS,
+                  # the stewards -- penalty calls and Benny's colour
+                  INVESTIGATION_CALLS, PENALTY_CALLS, PENALTY_SERVED_CALLS,
+                  RECLASSIFICATION_CALLS, PENALTY_COLOUR,
                   # the podium interview
                   PODIUM_HANDOFF, PODIUM_QUESTIONS, PODIUM_CLOSER_Q,
                   PODIUM_ANSWER_GENERIC, PODIUM_ANSWERS)
@@ -46,11 +49,38 @@ for _d in GRID:
     _TEAMMATE[_d.name] = _mates[0] if _mates else None
 
 
-# Who's in the booth. Roles -> names. Change these two strings and the whole feed
-# re-casts itself; add a third role here (and turns in lore.py) for a three-hander.
+# Who's in the booth. Roles -> names. Change the strings and the whole feed re-casts
+# itself; add a role here (and turns in lore.py) for another voice.
+#
+# THE BOOTH -- a character bible, because every authored line in lore.py is written
+# to these voices. Get the people right and the writing writes itself.
+#
+#   PHILL  (pbp)  -- the lap caller. NOT a straight-man, NOT a mook: Phill knows his
+#       history and his political theory cold, and he can drive a point home himself.
+#       But his JOB is the listener. He reads the race for them and, crucially, he
+#       draws Benny out -- teeing up the questions a sharp newcomer would ask, about
+#       BOTH the philosophy AND the racecraft ("so why does that idea make him brave
+#       into Eau Rouge?", "and the undercut works because...?"). He asks not because
+#       he doesn't know, but because the audience deserves the answer. Warm, quick,
+#       plummy, generous to his co-commentator -- and a bottomless well of enthusiasm.
+#
+#   BENNY  (colour) -- the sidekick. Ex-racer who reads far too much; explains the
+#       theory and the racecraft, thinks half the philosophy is daft and says so, and
+#       lands the punchline. Dry where Phill is warm. Knows the cars from the inside.
+#
+#   SUZE   (report) -- the pit-lane reporter. Podium only; conducts the interviews.
+#
+# THE TONE -- both men are steeped in Monty Python, the Simpsons, and Douglas Adams,
+# and it leaks out of them constantly even as they fight to stay professional. That
+# means: deadpan absurdism, the cheerfully bleak aside, the gloriously over-precise
+# pedantry, the non-sequitur that lands and is never acknowledged, the sudden swerve
+# into the cosmic or the trivial -- and then a brisk snap back to "...anyway, P3 into
+# the chicane." The comedy is in the WHIPLASH between high theory, real racecraft, and
+# two professionals who cannot quite suppress their own daftness. Never zany for its
+# own sake; the funniest line is the one delivered with a perfectly straight face.
 PERSONAS = {
-    "pbp":    "Phill",    # the lap caller: excitable, plummy, sets his man up
-    "colour": "Benny",    # the sidekick: ex-racer, dry, thinks the philosophy is daft
+    "pbp":    "Phill",    # the lap caller: knows his stuff, serves the listener, irrepressibly keen
+    "colour": "Benny",    # the sidekick: ex-racer, dry, well-read, lands the joke
     "report": "Suze",     # the pit-lane reporter: heard only on the podium, conducts the interviews
 }
 _TAG_WIDTH = max(len(n) for n in PERSONAS.values()) + 1   # room for the colon
@@ -379,6 +409,39 @@ class Booth:
         bucket = "lead" if uc.position == 1 else "points"
         return self._fresh(f"_uc_{bucket}", UNDERCUT_CALLS[bucket]).format(
             driver=uc.undercutter, other=uc.victim, earlier=earlier, pos=_ord(uc.position))
+
+    # --- the stewards: investigation -> verdict -> serving -> reclassification ---
+    def call_investigation(self, inv):
+        """Phill notes that race control are looking at something -- the suspense beat
+        before any verdict. Falls back to the contact phrasing for any new offence."""
+        pool = INVESTIGATION_CALLS.get(inv.offence, INVESTIGATION_CALLS["avoidable contact"])
+        return self._fresh(f"_inv_{inv.offence}", pool).format(
+            driver=inv.driver_name, other=inv.other_name)
+
+    def call_penalty(self, pen):
+        """Phill reads out a verdict. Seconds are spelled for a time penalty; every
+        placeholder is supplied so any template in any bucket formats cleanly."""
+        pool = PENALTY_CALLS.get(pen.kind, PENALTY_CALLS["time"])
+        secs = _spell(int(pen.seconds)) if pen.kind == "time" else ""
+        return self._fresh(f"_pen_{pen.kind}", pool).format(
+            driver=pen.driver_name, secs=secs, offence=pen.offence, other=pen.other_name)
+
+    def call_penalty_served(self, pen):
+        """Phill's call as a driver takes a drive-through or stop-go down the lane."""
+        return self._fresh("_pen_served", PENALTY_SERVED_CALLS).format(driver=pen.driver_name)
+
+    def call_reclassification(self, name, provisional_pos, official_pos):
+        """The flag-time twist: a car classified differently from where it finished on
+        the road, once an unserved time penalty is applied. Ordinals spelled."""
+        return self._fresh("_reclass", RECLASSIFICATION_CALLS).format(
+            driver=name, prov=_ord(provisional_pos), off=_ord(official_pos))
+
+    def for_penalty(self, pen):
+        """Benny's dry word on what a verdict MEANS -- the strategic fallout. Warnings
+        pass without colour (there's nothing to serve yet)."""
+        if pen.kind == "warning":
+            return None
+        return self._pick(PENALTY_COLOUR, {"penalty"})
 
     def lights_out(self):
         """The green-flag call -- the SAME words every time, because some moments are

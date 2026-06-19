@@ -152,6 +152,19 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
             bit = booth.for_incident(inc)           # Benny's take on the moment
             if bit:
                 play(bit)
+        # The stewards. A NOTICE the lap of the offence ("under investigation"), then
+        # a VERDICT a lap or two on -- read out, with Benny's word on what it costs.
+        # A drive-through or stop-go is called as it's served down the lane.
+        for inv in report.investigations:
+            say("pbp", booth.call_investigation(inv))
+        for pen in report.penalties:
+            if pen.served:
+                say("pbp", booth.call_penalty_served(pen))
+            else:
+                say("pbp", booth.call_penalty(pen))
+                bit = booth.for_penalty(pen)        # what it means for the race
+                if bit:
+                    play(bit)
         # Call the passes worth calling -- the lead and podium always, points places
         # selectively, and a real flier off the line. Midfield churn stays silent.
         # The booth collapses two cars trading a place into one ongoing-battle call.
@@ -181,6 +194,10 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
             fin = booth.for_finish(report.standings)
             if fin:
                 play(fin)
+            # The stewards' last word: cars classified away from where they crossed
+            # the line, once an unserved time penalty is applied at the flag.
+            for name, prov, off in report.reclassified:
+                say("pbp", booth.call_reclassification(name, prov, off))
 
         if new_lines:
             # Tick the new calls in one at a time, spread across the lap, so the
@@ -296,10 +313,15 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     starting_grid = [driver for driver, lap, qualified in quali_results if qualified]
     history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
 
-    # grid_pause holds the Countdown to Green on screen so it can be read before the
-    # race wipes it for the live standings board.
+    # grid_pause holds the Countdown to Green on screen so a screen-only viewer can
+    # read it before the race wipes it for the live standings board. The moment ANY
+    # voice is in play -- live audio, or a TTS engine rendering/exporting -- the speech
+    # sets the pace and this silent gap is just dead air, so we go straight to lights
+    # out. (Only a truly silent, screen-only run still needs the reading beat.)
     print("\n  Lights out -- here we go!\n")
-    time.sleep(grid_pause)
+    voiced = narrator.audible or getattr(narrator, "available", False) or narrator.capture
+    if not voiced:
+        time.sleep(grid_pause)
     play_race(history, speed=speed, track=track, show_telemetry=show_telemetry,
               booth=booth, end_pause=end_pause, narrator=narrator)
 

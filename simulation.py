@@ -139,6 +139,50 @@ UNDERCUT_MIN_STRATEGY = 0.45  # below this a driver never plays the undercut gam
 UNDERCUT_PACE_SLACK = 0.3     # don't undercut a rival more than this much quicker (they'd re-pass)
 # -----------------------------------------------------------------------------
 
+# --- Penalties ---------------------------------------------------------------
+# The stewards. Realistic infractions resolve, like everything else in this sim,
+# into seconds on the race clock (total_time) -- a time penalty is simply
+# car.total_time += seconds, so it can reshuffle the result the same way a slow
+# stop would. Most contact is ruled a RACING INCIDENT; the bigger and more one-
+# sided the hit, the likelier a verdict -- and the chaser who threw the move is the
+# default culprit (the engine already gives them the damage, see _collide).
+#
+# A penalty has a LIFECYCLE the booth can follow: the stewards NOTE an incident
+# ("under investigation"), hand down a VERDICT a few laps later, and the driver
+# SERVES it -- a held 5/10s at the next stop, or, if they never pit again, at the
+# FLAG (which can drop them in the final order). A drive-through or stop-go can't
+# wait for a planned stop, so it's served promptly.
+PEN_CONTACT_BASE = {"minor": 0.05, "moderate": 0.28, "major": 0.60}  # chance a contact draws a verdict
+PEN_DEFENDER_FAULT = 0.18      # of penalised contacts, chance the DEFENDER is to blame (moved under braking)
+PEN_TEN_SHARE = 0.30           # of time penalties, the share that are the bigger ten-second one
+PEN_DRIVETHROUGH_SHARE = 0.13  # of contact verdicts, the share escalated to a drive-through
+PEN_DSQ_SHARE = 0.02           # very rare: contact so egregious it's a disqualification (major only)
+DRIVE_THROUGH_LOSS = 15.0      # a trip through the pit lane at the limit, no stop (< a full stop)
+STOPGO_LOSS = 10.0             # extra stationary time on top of a normal stop -- the harsh one
+PEN_VERDICT_DELAY = (1, 3)     # laps between the incident and the stewards' verdict
+PEN_SERVE_WINDOW = 1           # a drive-through/stop-go is taken this many laps after the verdict
+
+PIT_SPEED_CHANCE = 0.008       # per stop: speeding in the pit lane -> a small time penalty
+UNSAFE_RELEASE_CHANCE = 0.004  # per stop: released into another car's path
+JUMP_START_CHANCE = 0.010      # per car per race: anticipating the lights off the line
+
+TRACK_LIMITS_CHANCE = 0.007    # per green lap: running wide for an advantage (one 'strike')
+TRACK_LIMITS_WARN = 3          # strikes before the black-and-white warning
+TRACK_LIMITS_PENALTY = 4       # the strike that converts to a five-second penalty
+
+# Some race to the rules; some treat the rulebook as a polite suggestion. A name-
+# keyed multiplier on penalty-proneness (1.0 = average): the rule-rejecters draw
+# more, the disciplined planners fewer. Derived, NOT a new driver stat -- combined
+# with racecraft at lights-out into car.penalty_proneness. Unlisted names = 1.0.
+PENALTY_CHARACTER = {
+    "Mikhail Bakunin": 1.9, "Max Stirner": 1.8, "Ayn Rand": 1.7, "Emma Goldman": 1.6,
+    "Diogenes": 1.6, "Friedrich Nietzsche": 1.5, "Frantz Fanon": 1.3, "Herbert Marcuse": 1.3,
+    "Rosa Luxemburg": 1.2,
+    "Niccolò Machiavelli": 0.6, "Karl Marx": 0.7, "Plato": 0.7, "Theodor Adorno": 0.8,
+    "Mary Wollstonecraft": 0.7, "Thomas Paine": 0.8, "Richard Rorty": 0.8,
+}
+# -----------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class Compound:
@@ -247,6 +291,16 @@ class CarState:
     stops_made: int = 0               # ALL stops (planned + undercut + weather) -- for display only
     compound: Compound = MEDIUM       # the tyre currently fitted
     plan: RacePlan = None             # the pre-race strategy, assigned by _plan_strategy before lights-out
+    # --- stewards' state (penalties) ---
+    penalty_proneness: float = 1.0    # set at lights-out from character + racecraft
+    pending_time: float = 0.0         # unserved time-penalty seconds: served at next stop, else at the flag
+    open_case: tuple = None           # an investigation awaiting its verdict: (offence, other, due_lap, kind, secs)
+    forced_serve: tuple = None        # a drive-through/stop-go owed: (kind, seconds, due_lap)
+    track_limits: int = 0             # track-limits strikes accrued this race
+    track_limits_warned: bool = False # has the black-and-white warning been shown
+    jump_started: bool = False        # anticipated the lights (flagged in _run_start, charged on lap 1)
+    dsq: bool = False                 # disqualified by the stewards (a retirement, by another name)
+    morale: float = 0.0               # DORMANT scaffolding for the next phase -- written, not yet read
 
     @property
     def damage(self):
@@ -270,6 +324,7 @@ class Standing:
     compound: str = ""           # the tyre currently fitted
     clean_lap: float = 0.0       # green-flag pace lap (no traffic/pit/incident) -- for pace commentary
     interval: float = 0.0        # gap to the car directly ahead (0 for the leader) -- for battle commentary
+    pending_time: float = 0.0    # unserved time-penalty seconds owed to the stewards -- for the +Ns tag
 
     @property
     def damage(self):
@@ -296,6 +351,7 @@ class Standing:
             compound=car.compound.name,
             clean_lap=car.last_clean_lap,
             interval=interval,
+            pending_time=car.pending_time,
         )
 
 
@@ -312,6 +368,7 @@ class Incident:
     other_name: str = ""        # the other car in a collision ("" for solo incidents)
     other_retired: bool = False # did the OTHER car retire in this collision
     location: str = ""          # named corner where it happened ("" if track-agnostic)
+    fault: str = ""             # stewards' read of a collision: "racing incident" | "chaser" | "defender" | ""
 
 
 @dataclass
@@ -336,6 +393,35 @@ class PitStop:
     stop_number: int     # 1 = first stop of the race for this car
     old_stint: int       # how many laps the tyres being changed had done
     compound: str = ""   # the fresh compound now fitted
+    serves_penalty: float = 0.0   # seconds of time penalty discharged AT this stop (0 = none)
+
+
+@dataclass
+class Investigation:
+    """The stewards NOTE an incident -- the 'under investigation' beat, before any
+    verdict lands. Gives the booth its suspense; the verdict (a Penalty) follows a
+    lap or two later."""
+    driver_name: str
+    lap: int
+    offence: str         # "avoidable contact" | "pit-lane speeding" | "unsafe release" | "jump start"
+    other_name: str = "" # the wronged party, where there is one
+
+
+@dataclass
+class Penalty:
+    """A stewards' verdict, resolved (like all time here) into seconds on the clock.
+    kind: 'warning' (no time) | 'time' (a held 5/10s) | 'drive-through' | 'stop-go'
+    | 'dsq'. `served` is False for the verdict beat and True for the act of serving
+    a drive-through/stop-go (a time penalty is served silently at a stop instead).
+    morale_delta is DORMANT scaffolding for the next phase."""
+    driver_name: str
+    lap: int             # the lap the verdict was handed down (or served, if served=True)
+    offence: str
+    kind: str
+    seconds: float = 0.0
+    other_name: str = ""
+    served: bool = False
+    morale_delta: float = 0.0
 
 
 @dataclass
@@ -360,6 +446,9 @@ class LapReport:
     overtakes: list = field(default_factory=list)   # list[Overtake]
     pit_stops: list = field(default_factory=list)   # list[PitStop]
     undercuts: list = field(default_factory=list)   # list[Undercut]
+    investigations: list = field(default_factory=list)  # list[Investigation] -- stewards' notices
+    penalties: list = field(default_factory=list)   # list[Penalty] -- verdicts handed down (and drive-throughs served)
+    reclassified: list = field(default_factory=list)  # [(name, provisional_pos, official_pos)] -- set on the FINAL lap only
     conditions: Conditions = None                   # the weather this lap was run in
     weather_change: str = ""                        # set on a threshold crossing: "rain_begins" etc.
 
@@ -514,6 +603,74 @@ def _collide(chaser, defender, lap):
     return inc, c_time, chaser_out
 
 
+# --- Stewards -----------------------------------------------------------------
+# These DECIDE; the booth (colour.py) and the words (lore.py) do the talking. A
+# verdict is just a kind and a number of seconds; everything else is bookkeeping
+# about WHEN those seconds land on the clock.
+
+def _morale_for(kind, seconds):
+    """Dormant scaffolding for the next phase: the morale hit a verdict would carry.
+    Written onto each Penalty now, read by nothing yet."""
+    return {"warning": -0.05, "time": -0.12, "drive-through": -0.20,
+            "stop-go": -0.28, "dsq": -0.5}.get(kind, -0.1) - 0.01 * seconds
+
+
+def _penalty_kind(severity):
+    """Pick the FORM a verdict takes. Most are a held time penalty (five, sometimes
+    ten seconds); a minority escalate to a drive-through; a major shunt can, very
+    rarely, be a disqualification."""
+    r = random.random()
+    if severity == "major" and r < PEN_DSQ_SHARE:
+        return ("dsq", 0.0)
+    if r < PEN_DRIVETHROUGH_SHARE:
+        return ("drive-through", DRIVE_THROUGH_LOSS)
+    return ("time", 10.0 if random.random() < PEN_TEN_SHARE else 5.0)
+
+
+def _contact_verdict(severity, chaser, defender):
+    """Did that contact draw a penalty, and on whom? Most contact is a racing
+    incident; severity and the chaser's proneness drive the chance of a verdict.
+    The chaser who threw the move is the usual culprit, but now and then the
+    defender is judged to have moved under braking. Returns (culprit, kind, secs)
+    or None for 'no further action'."""
+    if random.random() >= PEN_CONTACT_BASE[severity] * chaser.penalty_proneness:
+        return None
+    culprit = defender if random.random() < PEN_DEFENDER_FAULT else chaser
+    kind, secs = _penalty_kind(severity)
+    return (culprit, kind, secs)
+
+
+def _open_case(car, offence, kind, secs, lap, investigations, other_name=""):
+    """Open an investigation: announce it now, schedule the verdict a lap or two on.
+    One case at a time per car -- the stewards finish one before starting the next."""
+    if car.open_case or car.retired:
+        return
+    due = lap + random.randint(*PEN_VERDICT_DELAY)
+    car.open_case = (offence, other_name, due, kind, secs)
+    investigations.append(Investigation(car.driver.name, lap, offence, other_name))
+
+
+def _pit_infraction(car):
+    """Roll for an infraction during a pit stop: speeding in the lane, or an unsafe
+    release. Both are a small held time penalty. Returns (offence, kind, secs) or None."""
+    p = car.penalty_proneness
+    if random.random() < PIT_SPEED_CHANCE * p:
+        return ("pit-lane speeding", "time", 5.0)
+    if random.random() < UNSAFE_RELEASE_CHANCE * p:
+        return ("unsafe release", "time", 5.0)
+    return None
+
+
+def _serve_pending(car, time_lost, ps):
+    """Discharge any held time penalty AT a pit stop: the car sits the extra seconds.
+    Records the amount on the stop so the booth can call it, and clears the debt."""
+    if car.pending_time > 0:
+        ps.serves_penalty = car.pending_time
+        time_lost += car.pending_time
+        car.pending_time = 0.0
+    return time_lost
+
+
 def _standings(cars):
     """Running cars first (by race time), then retirements (latest DNF placed higher).
     Each running car also carries its interval to the car directly ahead."""
@@ -566,6 +723,9 @@ def _run_start(cars):
         jitter = random.gauss(0, LAUNCH_SPREAD)
         skill = (car.driver.launch - 0.5) * LAUNCH_SKILL      # >0 gains, <0 loses
         car.total_time = max(0.0, base + jitter - skill)
+        # Anticipating the lights -- flagged here, charged as a verdict on lap 1.
+        if random.random() < JUMP_START_CHANCE * car.penalty_proneness:
+            car.jump_started = True
 
     order = sorted(cars, key=lambda c: c.total_time)
     events = []
@@ -699,8 +859,9 @@ def _wants_undercut(car, ahead, gap, lap):
     next_stop = car.plan.pit_laps[car.pit_count]
     if not 0 < next_stop - lap <= UNDERCUT_BRINGFWD:
         return False                                  # only pull a stop a few laps early
-    if gap > UNDERCUT_TRIGGER_GAP:
-        return False                                  # not close enough to be 'stuck'
+    if gap + car.pending_time > UNDERCUT_TRIGGER_GAP:
+        return False                                  # not close enough -- and a held penalty,
+                                                      # served at this very stop, eats the margin
     if ahead.driver.pace < car.driver.pace - UNDERCUT_PACE_SLACK:
         return False                                  # rival clearly faster -- they'd just re-pass
     if car.driver.strategy < UNDERCUT_MIN_STRATEGY:
@@ -733,6 +894,10 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
     for car in cars:
         car.plan = _plan_strategy(car.driver, track, laps)
         car.compound = car.plan.compounds[0]
+        # How likely the stewards are to be involved: character (the rule-rejecters
+        # draw more) times a clumsiness term from racecraft. Derived, not a new stat.
+        car.penalty_proneness = (PENALTY_CHARACTER.get(car.driver.name, 1.0)
+                                 * (1.2 - 0.4 * car.driver.racecraft))
 
     # The weather for the whole race, decided before lights-out and then read each
     # lap. Dry unless this circuit's rain_chance rolls in.
@@ -762,14 +927,41 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
         prev_wetness = cond.wetness
 
         running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
+        incidents = []
+        overtakes = list(start_events) if lap == 1 else []
+        pit_stops = []
+        investigations = []
+        penalties = []
+
+        # --- Stewards' room. First, open a case against anyone who jumped the start
+        # (lap 1 only). Then hand down any verdict now due: a time penalty joins the
+        # car's debt (served at the next stop, else at the flag); a drive-through or
+        # stop-go is owed promptly; a DSQ is a retirement by another name.
+        if lap == 1:
+            for car in running:
+                if car.jump_started:
+                    car.jump_started = False
+                    _open_case(car, "jump start", "time", 5.0, lap, investigations)
+        for car in running:
+            if car.open_case and car.open_case[2] <= lap:
+                offence, other, _due, kind, secs = car.open_case
+                car.open_case = None
+                penalties.append(Penalty(car.driver.name, lap, offence, kind, secs,
+                                         other_name=other, morale_delta=_morale_for(kind, secs)))
+                if kind == "time":
+                    car.pending_time += secs
+                elif kind in ("drive-through", "stop-go"):
+                    car.forced_serve = (kind, secs, lap + PEN_SERVE_WINDOW)
+                elif kind == "dsq":
+                    car.retired, car.retired_on_lap, car.dsq = True, lap, True
+        # A DSQ drops a car out, so re-read the order before pacing the lap.
+        running = sorted((c for c in cars if not c.retired), key=lambda c: c.total_time)
+
         # Pre-lap gap to the car directly ahead (race-time, from last lap's totals).
         # This is the 'am I stuck behind someone?' signal the undercut decision reads.
         gaps = [float("inf")] * len(running)
         for j in range(1, len(running)):
             gaps[j] = running[j].total_time - running[j - 1].total_time
-        incidents = []
-        overtakes = list(start_events) if lap == 1 else []
-        pit_stops = []
 
         for i, car in enumerate(running):
             car.stint_laps += 1                                       # another lap on this set
@@ -800,6 +992,20 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                                           "major", 0.0, 0.0, 0.0, True))
                 continue
 
+            # 1b. Serve a drive-through / stop-go that's come due -- a forced trip down
+            # the pit lane (no fresh tyres), taken promptly because the rules demand it.
+            if car.forced_serve and car.forced_serve[2] <= lap:
+                kind, secs, _due = car.forced_serve
+                car.forced_serve = None
+                loss = secs if kind == "drive-through" else PIT_LOSS + secs
+                time_lost += loss
+                penalties.append(Penalty(car.driver.name, lap, "avoidable contact",
+                                         kind, loss, served=True,
+                                         morale_delta=_morale_for(kind, secs)))
+                car.total_time = old_total + lap_time + time_lost
+                car.last_lap = car.total_time - old_total
+                continue
+
             # 2. Solo mistake: a lone error, far likelier for low-racecraft drivers --
             # and far likelier still in the wet, especially on the wrong rubber.
             wet_mult = 1.0 + WET_INCIDENT * cond.wetness
@@ -813,6 +1019,23 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                 if inc.retirement:
                     _retire(car, lap, old_total, lap_time, time_lost)
                     continue
+
+            # 2.5 Track limits: running wide for an advantage. Strikes accrue across
+            # the race; the third brings the black-and-white warning, the fourth a
+            # five-second penalty (then the slate is wiped). The rule-rejecters rack
+            # them up; the disciplined planners almost never do.
+            if random.random() < TRACK_LIMITS_CHANCE * car.penalty_proneness:
+                car.track_limits += 1
+                if not car.track_limits_warned and car.track_limits >= TRACK_LIMITS_WARN:
+                    car.track_limits_warned = True
+                    penalties.append(Penalty(car.driver.name, lap, "track limits",
+                                             "warning", 0.0, morale_delta=_morale_for("warning", 0)))
+                elif car.track_limits >= TRACK_LIMITS_PENALTY:
+                    car.track_limits = 0
+                    car.track_limits_warned = False
+                    car.pending_time += 5.0
+                    penalties.append(Penalty(car.driver.name, lap, "track limits",
+                                             "time", 5.0, morale_delta=_morale_for("time", 5.0)))
 
             # 2a. Weather stop: the conditions now call for a different tyre family than
             # the one fitted -- so the driver dives in for the right rubber. How quickly
@@ -829,6 +1052,10 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                     time_lost += PIT_LOSS
                     pit_stops.append(PitStop(car.driver.name, lap, car.stops_made,
                                              old_stint, car.compound.name))
+                    time_lost = _serve_pending(car, time_lost, pit_stops[-1])
+                    infr = _pit_infraction(car)
+                    if infr:
+                        _open_case(car, infr[0], infr[1], infr[2], lap, investigations)
                     car.total_time = old_total + lap_time + time_lost
                     car.last_lap = car.total_time - old_total
                     continue
@@ -856,6 +1083,10 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                     time_lost += PIT_LOSS
                     pit_stops.append(PitStop(car.driver.name, lap, car.stops_made,
                                              old_stint, car.compound.name))
+                    time_lost = _serve_pending(car, time_lost, pit_stops[-1])
+                    infr = _pit_infraction(car)
+                    if infr:
+                        _open_case(car, infr[0], infr[1], infr[2], lap, investigations)
                     car.total_time = old_total + lap_time + time_lost
                     car.last_lap = car.total_time - old_total
                     continue                                              # the in-lap skips the on-track fight
@@ -889,6 +1120,17 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
                 if random.random() < CONTACT_CHANCE * length_scale * (1 - car.driver.racecraft):
                     inc, lost, chaser_out = _collide(car, ahead, lap)
                     inc.location = _pick_corner(track, overtaking=True)
+                    # The stewards' read: racing incident, or avoidable contact on the
+                    # chaser (usually) or the defender (moved under braking, rarely).
+                    verdict = _contact_verdict(inc.severity, car, ahead)
+                    if verdict:
+                        culprit, kind, secs = verdict
+                        inc.fault = "chaser" if culprit is car else "defender"
+                        victim = ahead.driver.name if culprit is car else car.driver.name
+                        _open_case(culprit, "avoidable contact", kind, secs, lap,
+                                   investigations, other_name=victim)
+                    else:
+                        inc.fault = "racing incident"
                     incidents.append(inc)
                     time_lost += lost
                     if chaser_out:
@@ -904,7 +1146,28 @@ def run_race(starting_grid, track, laps=None, difficulty=None):
             car.last_lap = car.total_time - old_total
 
         history.append(LapReport(lap, _standings(cars), incidents, overtakes, pit_stops,
+                                 investigations=investigations, penalties=penalties,
                                  conditions=cond, weather_change=weather_change))
+
+    # Stewards' time penalties NOT served at a stop are applied at the FLAG, which can
+    # reshuffle the final order -- the 'crosses the line third, classified fifth' drama.
+    # Cars that served at a stop already carry it in total_time, so only the unserved
+    # debt is applied here. We record who actually moves for the post-race show.
+    final_report = history[-1]
+    provisional = [s.name for s in final_report.standings if not s.retired]
+    for car in cars:
+        if car.pending_time > 0 and not car.retired:
+            car.total_time += car.pending_time
+            car.pending_time = 0.0
+    final_report.standings = _standings(cars)
+    official = [s.name for s in final_report.standings if not s.retired]
+    moved = []
+    for name in provisional:
+        before = provisional.index(name) + 1
+        after = (official.index(name) + 1) if name in official else before
+        if before != after:
+            moved.append((name, before, after))
+    final_report.reclassified = moved
 
     # Finalise the record: the live loop produced the racing; this reads the whole
     # history back and NAMES the pit-lane moves (undercuts) it created along the way.
@@ -937,6 +1200,8 @@ class RaceSummary:
     double_dnfs: list          # [(chaser, defender, lap, location)] from major collisions
     overtakes_count: int = 0   # clean on-track passes for position across the race
     undercuts_count: int = 0   # passes completed in the pit lane (the undercut)
+    penalties: list = field(default_factory=list)   # [(name, offence, kind, lap)] -- verdicts handed down
+    reclassified: list = field(default_factory=list)  # [(name, provisional_pos, official_pos)] at the flag
 
 
 UNDERCUT_WINDOW = 6     # the rival must stop within this many laps for the move to count
@@ -1065,6 +1330,12 @@ def summarize_race(history, track):
                           if ov.position <= 3 and ov.location != "the start")
     undercuts_count = sum(len(rep.undercuts) for rep in history)
 
+    # Stewards' verdicts handed down across the race (the announce beat, not the act
+    # of serving a drive-through), plus any flag reclassification.
+    penalties = [(p.driver_name, p.offence, p.kind, rep.lap)
+                 for rep in history for p in rep.penalties if not p.served]
+    reclassified = list(history[-1].reclassified)
+
     return RaceSummary(
         circuit=track.circuit,
         total_laps=total_laps, starters=starters, finishers=finishers,
@@ -1077,4 +1348,6 @@ def summarize_race(history, track):
         retirements=retire_list, double_dnfs=double_dnfs,
         overtakes_count=overtakes_count,
         undercuts_count=undercuts_count,
+        penalties=penalties,
+        reclassified=reclassified,
     )

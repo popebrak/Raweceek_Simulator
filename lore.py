@@ -394,6 +394,85 @@ UNDERCUT_CALLS = {
 }
 
 
+# --- THE STEWARDS -- Phill's factual penalty calls, as data ------------------
+# A penalty's broadcast arc: the NOTICE (under investigation), the VERDICT (a
+# kind and a number), the SERVING (a drive-through), and -- when it's served at
+# the flag -- the RECLASSIFICATION. Numbers spelled by colour.py before they air.
+INVESTIGATION_CALLS = {
+    "avoidable contact": [
+        "The stewards are taking a look at that contact between {driver} and {other}.",
+        "That one's going upstairs -- {driver} and {other}, under investigation.",
+        "Note from race control: the {driver}-{other} incident is under investigation.",
+        "{driver} into {other} -- and the stewards have flagged it for a look.",
+        "Race control will review that one -- {driver} and {other}, noted.",
+    ],
+    "pit-lane speeding": [
+        "Race control are checking {driver}'s speed through the pit lane.",
+        "{driver} may have been a shade quick in the lane -- under investigation.",
+        "The pit-lane gun has {driver} under review.",
+    ],
+    "unsafe release": [
+        "Questions over {driver}'s release from the box -- the stewards are looking.",
+        "That looked a tight release for {driver} -- under investigation.",
+    ],
+    "jump start": [
+        "The lights -- and the stewards are checking {driver}'s getaway.",
+        "Did {driver} go early? A possible jump start, under investigation.",
+    ],
+}
+PENALTY_CALLS = {
+    "time": [
+        "And the verdict: a {secs}-second penalty for {driver}.",
+        "{driver} gets {secs} seconds -- {offence}, say the stewards.",
+        "The stewards have decided: a {secs}-second time penalty for {driver}.",
+        "Penalty for {driver} -- {secs} seconds, for {offence}.",
+        "There it is -- {secs} seconds for {driver}. The stewards have made up their minds.",
+    ],
+    "drive-through": [
+        "Worse for {driver} -- it's a drive-through.",
+        "The stewards throw the book at {driver}: a drive-through penalty.",
+        "{driver} handed a drive-through -- and that genuinely hurts.",
+    ],
+    "stop-go": [
+        "A ten-second stop-go for {driver} -- about as bad as it gets short of the black flag.",
+        "Stop-go for {driver}. Sit in the box for ten and think it over.",
+    ],
+    "dsq": [
+        "And {driver} is OUT -- disqualified by the stewards. Extraordinary scenes.",
+        "The black flag for {driver} -- disqualified. Their afternoon ends in the stewards' room.",
+    ],
+    "warning": [
+        "Black-and-white flag for {driver} -- a warning on track limits. One more and it's a penalty.",
+        "{driver} shown the black-and-white -- final warning for running wide.",
+    ],
+}
+PENALTY_SERVED_CALLS = [
+    "{driver} peels in to serve it -- straight down the lane, no new rubber.",
+    "There goes {driver} to take the medicine -- penalty served.",
+    "{driver} serves it: a long, lonely trip down the pit lane and out the far end.",
+]
+RECLASSIFICATION_CALLS = [
+    "{driver} crosses the line {prov} -- but the penalty drops them to {off}.",
+    "And the stewards have the final word: {driver} classified {off}, not {prov}.",
+    "On the road it was {prov} for {driver} -- on the timing sheet, the penalty makes it {off}.",
+]
+
+# Benny's colour on a verdict -- what it MEANS for the race, dry and to the point.
+# Generic (any driver), so deliberately gender-neutral, like the other shared pools.
+PENALTY_COLOUR = [
+    quip("Five seconds doesn't sound much until you remember it's about a year and a half out here.", when="penalty"),
+    quip("That's the undercut dead in the water -- they've the gap to find AND the penalty to serve, at the same stop.", when="penalty"),
+    quip("Now the maths gets cruel: they have to build a five-second buffer, or they're serving it at the flag and dropping like a stone.", when="penalty"),
+    quip("Track position they earned on the road, handed straight back in the stewards' room.", when="penalty"),
+    quip("They'll serve it at the stop -- so the crew get five extra seconds to admire their handiwork.", when="penalty"),
+    banter([("pbp", "How much does that cost them, Benny?"),
+            ("colour", "A podium becomes a points finish, just like that. They can't just race the car ahead now -- they have to beat it by five seconds, which is a different sport.")], when="penalty"),
+    banter([("pbp", "Can they recover from that?"),
+            ("colour", "Only by doing on track what the stewards just undid on paper. Pit with a cushion, or cross the line far enough clear that the penalty doesn't matter. Easy to say at this end of the pit wall.")], when="penalty"),
+    quip("And there's the thing about justice at two hundred miles an hour -- it arrives three laps after the crime and lands on the timing screen.", when="penalty"),
+]
+
+
 # Directional overtake reactions for the marquee pairings -- the lap caller has
 # already called the pass; these are the booth's instant take on what it MEANS.
 PAIR_LORE = {
@@ -1324,6 +1403,77 @@ DISCUSSIONS = [
         ("pbp", "Clear sight from the cheap seats."),
         ("colour", "Best view in the house, the cheap seats. He drives like a man who's read the whole system's accounts and knows exactly who's getting paid -- and it's never him. Patient, relentless, faintly furious. Watch him in the long runs."),
     ], about=("Karl Marx",), topic="marx in london"),
+
+    # === The stewards as philosophy: justice, punishment, and who the rules fall on ===
+    discussion([
+        ("pbp", "A penalty just came down, and I can't not say it: Foucault literally wrote the book on this. Discipline and Punish -- punishment shifting from the scaffold to the quiet, constant correction of behaviour."),
+        ("colour", "And the stewards are his case study come to life. They don't need to punish everyone -- they need everyone to drive as if they MIGHT. The five-second penalty isn't really about the five seconds."),
+        ("pbp", "It's about the watching."),
+        ("colour", "It's about the watching. Twenty of the most rebellious minds in history, all lifting a fraction early at the white line because a camera might be looking. Foucault would be unbearable about how right he was."),
+    ], about=("Michel Foucault",), topic="discipline and punish"),
+
+    discussion([
+        ("pbp", "Now the anarchists will have FEELINGS about a penalty, Benny. Bakunin, Goldman, Stirner -- authority handing down a verdict is the one thing they exist to reject."),
+        ("colour", "To Stirner the stewards are just another spook -- a ghost with a clipboard, real only because everyone agrees to bow. Bakunin wants to overturn the whole stewards' table. Goldman wants to know who elected them."),
+        ("pbp", "So do they serve it?"),
+        ("colour", "They have to -- that's the joke. The barrier doesn't care about your theory of authority, and neither does the timing screen. You can reject the legitimacy of the penalty all you like, at minus five seconds, in public."),
+    ], about=("Mikhail Bakunin", "Emma Goldman"), topic="anarchists and stewards"),
+
+    discussion([
+        ("pbp", "Here's the real argument under every stewards' decision, and it's an old one: was that wrong because of the RULE he broke, or because of the HARM he did?"),
+        ("colour", "That's the whole split. One camp says a rule's a rule -- break it and you're guilty, outcome be damned. The other says no harm, no foul; it's the wreckage that matters, not the rulebook."),
+        ("pbp", "Racing incident versus avoidable contact."),
+        ("colour", "Exactly that, every single time. 'They both could've left more room' is the no-harm-no-foul crowd. 'He stuck his nose where it didn't fit' is the rule-is-a-rule crowd. The stewards are refereeing a two-thousand-year-old ethics seminar, with replays."),
+    ], topic="rule or harm"),
+
+    discussion([
+        ("pbp", "Nietzsche on punishment is darker and cleverer than people expect. In the Genealogy he traces the whole idea of guilt back to DEBT -- in German it's the same word, Schuld."),
+        ("colour", "It is, and it's a brilliant nasty insight. Punishment, he says, began as a creditor collecting -- you owe, you couldn't pay, so society takes it out of your hide instead. A penalty isn't justice, it's a debt being settled."),
+        ("pbp", "So five seconds is the instalment plan."),
+        ("colour", "Five seconds is the instalment plan, and the stewards are the collection agency. Nietzsche would watch a driver serve a penalty and see the oldest transaction there is -- pain accepted in place of what's owed. Cheerful chap."),
+    ], about=("Friedrich Nietzsche",), topic="punishment and debt"),
+
+    discussion([
+        ("pbp", "Plato wouldn't see a penalty as revenge at all, would he. For him punishment is supposed to IMPROVE the wrongdoer."),
+        ("colour", "That's the Gorgias line -- better to be punished than to get away with it, because escaping it leaves your soul sick. To Plato a five-second penalty is medicine, and the driver who dodges one is the one you should pity."),
+        ("pbp", "Try selling that on the cooldown lap."),
+        ("colour", "Try selling it to anyone, ever. 'This penalty is for the good of your soul' -- you'd be lucky to get the helmet off in one piece. But it's the most optimistic theory of the stewards' room ever written, I'll give him that."),
+    ], about=("Plato",), topic="punishment as medicine"),
+
+    discussion([
+        ("pbp", "Rand's position on a penalty would be fascinating, because she actually BELIEVED in objective law -- impartial rules, applied equally."),
+        ("colour", "She did. In principle she's the stewards' biggest fan -- objective, blind, no favourites. In practice, the instant a rule constrains HER, it becomes tyranny by committee and an outrage against the rational individual."),
+        ("pbp", "Rules for thee."),
+        ("colour", "Rules she'd have written herself, right up until they cost her a place. That's the gap between the philosophy and the cockpit -- and with Rand it's a wide one, usually measured in gravel."),
+    ], about=("Ayn Rand",), topic="rand and objective law"),
+
+    discussion([
+        ("pbp", "Machiavelli wouldn't moralise about a penalty for a second -- he'd just ask whether it WORKS."),
+        ("colour", "Pure instrument, to him. He wrote that a leader should punish decisively, all at once, and be done -- cruelty rationed badly only breeds contempt. He'd want the stewards FEARED, not loved, and certainly not debated."),
+        ("pbp", "Better feared than loved."),
+        ("colour", "His actual line, near enough. He'd look at a wishy-washy five-second penalty for taking someone out and tut -- too soft, drags on, satisfies nobody. Machiavelli's stewards hand down the drive-through and move on. Brutal, but you'd not do it twice."),
+    ], about=("Niccolò Machiavelli",), topic="machiavelli on punishment"),
+
+    discussion([
+        ("pbp", "And Marx would point at the stewards and ask the awkward question: whose interests do these rules actually serve?"),
+        ("colour", "Every time. To Marx the rulebook isn't neutral -- it's written by the people with the most to protect, and it tends, funnily enough, to fall hardest on the ones who didn't write it. The law as the will of whoever owns the most garages."),
+        ("pbp", "Cynical."),
+        ("colour", "Or clear-eyed, depending where you're standing. He's not wrong that the penalties land more on the wild outsiders than the established front-runners -- though Benny's view is that's mostly because the outsiders keep driving into people."),
+    ], about=("Karl Marx",), topic="marx on the rulebook"),
+
+    discussion([
+        ("pbp", "I have to ask the daft question the whole crowd's thinking, Benny. Why FIVE seconds? Why not four, or six?"),
+        ("colour", "Genuinely? Because somebody, somewhere, in a meeting, decided five FELT right. There's no law of physics in it. It's a number a committee agreed on over lukewarm coffee, and now it's the difference between a trophy and nothing."),
+        ("pbp", "The cosmos shrugs."),
+        ("colour", "The cosmos shrugs and the timing screen does not. That's the whole human comedy in one penalty -- an arbitrary number, applied with total seriousness, deciding everything. Douglas Adams could've retired on it."),
+    ], topic="why five seconds"),
+
+    discussion([
+        ("pbp", "Last one on the stewards, and it's the Fanon and Cesaire point: it matters enormously WHO the rules tend to fall on."),
+        ("colour", "It does. Both of them spent their lives on exactly that -- not whether there are rules, but who writes them, who they're enforced against, and who gets the benefit of the doubt. A penalty isn't just a penalty; it's a question about whose racing gets called 'aggressive' and whose gets called 'robust.'"),
+        ("pbp", "Same move, two words for it."),
+        ("colour", "Same move, two words, and which word you get can depend on which end of the grid you started. They'd watch the stewards closely -- not cynically, just carefully. It's the most serious point in the whole conversation, and worth making straight."),
+    ], about=("Frantz Fanon", "Aimé Césaire"), topic="who the rules fall on"),
 ]
 
 

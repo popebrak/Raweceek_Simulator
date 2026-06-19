@@ -79,6 +79,13 @@ def _tyre_tag(s):
     return f"  ({comp}{s.stint_laps}L)"
 
 
+def _penalty_tag(s):
+    """A held time penalty the stewards have handed down but the car hasn't served
+    yet -- a debt it carries until its next stop, or the flag."""
+    pend = getattr(s, "pending_time", 0.0)
+    return f"  +{int(round(pend))}s PEN" if pend > 0 else ""
+
+
 def _weather_tag(conditions):
     """A compact conditions read for the board header: label + air/track temps."""
     if conditions is None:
@@ -95,7 +102,7 @@ def render_standings(standings, lap, total_laps, conditions=None):
             continue
         gap_str = "LEADER" if s.position == 1 else f"+{s.gap_to_leader:.3f}"
         lines.append(f"  P{s.position:<2} {s.name:<21} {s.team:<15} "
-                     f"{gap_str:<10} last {format_time(s.last_lap)}{_tyre_tag(s)}{_damage_tag(s)}")
+                     f"{gap_str:<10} last {format_time(s.last_lap)}{_tyre_tag(s)}{_penalty_tag(s)}{_damage_tag(s)}")
     return "\n".join(lines)
 
 
@@ -200,6 +207,19 @@ def render_summary(summary):
     if s.undercuts_count:
         moves = "undercut paid off" if s.undercuts_count == 1 else "undercuts paid off"
         lines.append(f"  {s.undercuts_count} {moves} in the pit lane.")
+
+    # The stewards' afternoon: verdicts handed down, and any flag-time reshuffle.
+    penalties = getattr(s, "penalties", [])
+    if penalties:
+        n = len(penalties)
+        lines.append(f"  The stewards were busy: {n} penalt{'y' if n == 1 else 'ies'} handed down.")
+        for name, offence, kind, lap in penalties:
+            verdict = {"time": "time penalty", "drive-through": "drive-through",
+                       "stop-go": "stop-go", "dsq": "DISQUALIFIED",
+                       "warning": "warning"}.get(kind, kind)
+            lines.append(f"     - {name}: {verdict} for {offence} (lap {lap})")
+    for name, prov, off in getattr(s, "reclassified", []):
+        lines.append(f"  Stewards' reclassification: {name} crossed the line P{prov}, classified P{off}.")
 
     return "\n".join(lines)
 
