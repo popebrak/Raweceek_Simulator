@@ -374,7 +374,9 @@ if __name__ == "__main__":
                         default="silent",
                         help="who reads the commentary aloud (default: silent -- text only)")
     parser.add_argument("--track", default=None,
-                        help="circuit name, e.g. Monza or Spa (default: a random one)")
+                        help="circuit to race: venue, country, GP, or nickname "
+                             "(e.g. Monza, Spa, Monaco, Silverstone, Suzuka, Interlagos). "
+                             "Default: a random one.")
     parser.add_argument("--laps", type=int, default=None,
                         help="override the race distance (default: the track's own)")
     parser.add_argument("--speed", type=float, default=20.0,
@@ -384,15 +386,25 @@ if __name__ == "__main__":
                              "it live; needs a real --voice (espeak/piper/kokoro/chatterbox)")
     args = parser.parse_args()
 
+    # Resolve --track up front so an unknown name is a clear error, not a silent random
+    # pick. (run_weekend / render_weekend_audio accept the resolved Track object directly.)
+    track = args.track
+    if track is not None:
+        resolved = track_by_circuit(track)
+        if resolved is None:
+            parser.error("unknown track %r. Available: %s"
+                         % (track, ", ".join(t.circuit for t in CALENDAR)))
+        track = resolved
+
     if args.render:
         if args.voice == "silent":
             parser.error("--render needs a real --voice: espeak, piper, or kokoro")
-        out = render_weekend_audio(track=args.track, path=args.render,
+        out = render_weekend_audio(track=track, path=args.render,
                                    laps=args.laps, engine=args.voice)
         if out:
             print(f"  Wrote {out}")
     else:
         # grid_pause / end_pause hold the pre/post-race screens long enough to read;
         # with a voice on, the race paces itself to the speech instead.
-        run_weekend(track=args.track, speed=args.speed, laps=args.laps,
+        run_weekend(track=track, speed=args.speed, laps=args.laps,
                     grid_pause=10.0, end_pause=10.0, narrate=args.voice)

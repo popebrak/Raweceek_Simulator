@@ -153,9 +153,31 @@ CALENDAR = [
 ]
 
 
+# Common nicknames / shorthands that don't appear in the venue, country, or GP name.
+_TRACK_ALIASES = {
+    "uk": "Silverstone", "britain": "Silverstone", "england": "Silverstone",
+    "great britain": "Silverstone",
+    "brasil": "Interlagos", "são paulo": "Interlagos",
+}
+
+
 def track_by_circuit(name):
-    """Look up a track by its venue name (case-insensitive). None if not found."""
-    for t in CALENDAR:
-        if t.circuit.lower() == name.lower():
+    """Find a track by a forgiving name -- the venue ('Monza'), the country ('Japan'),
+    the Grand Prix ('Belgian'), or a common nickname ('Monaco', 'Spa', 'UK'). Matching is
+    case-insensitive and a partial is fine ('spa', 'silver', 'inter'). None if nothing
+    matches -- callers should report that rather than silently picking another track."""
+    q = (name or "").strip().lower()
+    if not q:
+        return None
+    for t in CALENDAR:                                  # exact venue wins
+        if t.circuit.lower() == q:
+            return t
+    target = _TRACK_ALIASES.get(q)                      # a known nickname
+    if target:
+        for t in CALENDAR:
+            if t.circuit == target:
+                return t
+    for t in CALENDAR:                                  # partial across venue/country/GP
+        if q in f"{t.circuit} {t.country} {t.name}".lower():
             return t
     return None

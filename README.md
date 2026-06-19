@@ -95,6 +95,25 @@ Options: `--voice {silent,espeak,piper,kokoro,chatterbox}` (default `silent`),
 `--track NAME`, `--laps N`, `--speed N`, `--render FILE`. With a voice on, the race
 paces itself to the speech; `--render` writes a `.wav` instead of playing live.
 
+## Tracks
+
+Six circuits, each with its own real lap count, tyre wear, weather odds, and overtaking
+difficulty. Leave `--track` off for a random one, or name any of these:
+
+| Circuit | Grand Prix | Country | Laps | Also accepts |
+|---|---|---|---|---|
+| **Monza** | Italian | Italy | 53 | `italy` |
+| **Spa-Francorchamps** | Belgian | Belgium | 44 | `spa`, `belgium` |
+| **Monte Carlo** | Monaco | Monaco | 78 | `monaco` |
+| **Silverstone** | British | United Kingdom | 52 | `uk`, `britain` |
+| **Suzuka** | Japanese | Japan | 53 | `japan` |
+| **Interlagos** | São Paulo | Brazil | 71 | `brazil`, `sao paulo` |
+
+`--track` is case-insensitive and forgiving: the venue, the country, the Grand Prix, a
+nickname, or a partial all work (`spa`, `Monaco`, `silver`, `japan` all hit). An
+unrecognised name is reported with the list above rather than silently picking another
+circuit.
+
 ## Setup
 
 The simulator itself is pure Python and needs nothing extra — `python main.py` just
