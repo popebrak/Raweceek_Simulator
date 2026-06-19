@@ -89,49 +89,13 @@ def play_race(history, speed, track=None, show_telemetry=False, booth=None, end_
         if report is history[0]:
             say("pbp", booth.lights_out())
 
-        # A change in the weather is a headline -- call it first, because it sets up
-        # everything that follows (the spins, the dive for the pit lane). Reactive to
-        # the moment, so it never reads stale.
-        if report.weather_change:
-            wbit = booth.for_weather(report.weather_change)
-            if wbit:
-                play(wbit)
-
-        # The director watches the whole lap, event or not: it updates its battle
-        # arcs from the timing tower (cars locked nose-to-tail in a pursuit), so what
-        # follows can recognise a crash or an undercut as the END of a fight.
-        director.observe(report)
-
-        # Incidents go through the director too now. It gates the trivial ones out --
-        # and, the cross-type win, when a collision ends a fight it has been tracking,
-        # it calls the crash as that battle's climax. Telemetry stays an opt-in debug
-        # annotation, threaded through the director but never spoken.
-        for beat in director.incidents(report, telemetry=show_telemetry):
-            play(beat)
-        # The stewards. A NOTICE the lap of the offence ("under investigation"), then
-        # a VERDICT a lap or two on -- read out, with Benny's word on what it costs.
-        # A drive-through or stop-go is called as it's served down the lane.
-        for inv in report.investigations:
-            say("pbp", booth.call_investigation(inv))
-        for pen in report.penalties:
-            if pen.served:
-                say("pbp", booth.call_penalty_served(pen))
-            else:
-                say("pbp", booth.call_penalty(pen))
-                bit = booth.for_penalty(pen)        # what it means for the race
-                if bit:
-                    play(bit)
-        # Passes now go through the DIRECTOR -- the narrative layer. It owns which
-        # passes are worth calling, tracks battles as developing arcs, calls back a
-        # fight it has seen before, and paces the lap to an attention budget (so a
-        # busy lap calls the moves that matter rather than every one). It hands back
-        # ordered Beats, which play exactly like a Bit of banter.
-        for beat in director.overtakes(report):
-            play(beat)
-        # Pit stops and undercuts go through the director: routine stops at the sharp
-        # end get a call, and an undercut that settles a fight the cars couldn't win on
-        # track is named as exactly that -- and closes the arc.
-        for beat in director.pits(report):
+        # THE PRODUCER'S DESK. One call hands the whole lap to the director, which
+        # gathers every event -- weather, incidents, the stewards, passes, stops and
+        # undercuts -- scores them on one salience scale, always voices the mandatory
+        # tier (a retirement, the lead, contact, a verdict, an undercut, a weather
+        # call) and lets the rest compete for the lap's airtime budget. It hands back
+        # ordered Beats, biggest story first, which play exactly like a Bit of banter.
+        for beat in director.narrate(report, telemetry=show_telemetry):
             play(beat)
 
         # The flag: on the final lap the winner's moment always gets called, AFTER
