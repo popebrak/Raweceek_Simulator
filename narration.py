@@ -489,12 +489,16 @@ class ChatterboxNarrator(Narrator):
         ref = self._ref(role)
         if ref:
             kwargs["audio_prompt_path"] = ref
+        # `exaggeration` only does anything on the Original variant. Turbo doesn't
+        # support it -- it accepts the kwarg but ignores it and logs a warning on every
+        # line -- so we simply don't pass it there.
+        if self.variant == "original":
+            kwargs["exaggeration"] = cfg.get("exaggeration", 1.0)
         try:
-            # exaggeration is supported by the Original variant; if a build rejects it,
-            # fall back to a plain generate so we still get audio.
             try:
-                wav = model.generate(text, exaggeration=cfg.get("exaggeration", 1.0), **kwargs)
+                wav = model.generate(text, **kwargs)
             except TypeError:
+                kwargs.pop("exaggeration", None)   # a build that rejects it outright
                 wav = model.generate(text, **kwargs)
         except Exception:
             return False
