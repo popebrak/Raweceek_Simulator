@@ -194,7 +194,7 @@ def _play_show(turns, pace, narrator):
 
 def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
                 laps=None, difficulty=None, show_pace=1.0, end_pause=10.0,
-                narrate="silent"):
+                narrate="silent", chatterbox_variant=None):
     # Pick a circuit (by name, by object, or at random) -- the track decides the
     # race distance and how hard it is to pass.
     if track is None:
@@ -205,8 +205,9 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     # The voice. narrate=one of "espeak" / "piper" / "kokoro" reads the booth aloud if
     # that engine is set up, and otherwise quietly falls back to the original visual-
     # only playback -- printing a one-line hint about what's missing. Use "silent" to
-    # force screen-only.
-    narrator = make_narrator(narrate)
+    # force screen-only. chatterbox_variant ("turbo"/"original") only bites when the
+    # voice IS chatterbox; None lets the engine pick its own default (Turbo).
+    narrator = make_narrator(narrate, variant=chatterbox_variant)
     if narrator.audible:
         print("  [voices on -- the race now runs at talking speed]")
         narrator.warm_up()              # do any first-run download now, not mid-race
@@ -254,11 +255,13 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
 
 
 def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None,
-                         gap=0.35, engine="piper"):
+                         gap=0.35, engine="piper", chatterbox_variant=None):
     """Render a whole weekend's commentary -- the Countdown to Green, the race, and
     the post-race show -- to a single WAV file. `engine` picks the voice
-    ("espeak"/"piper"/"kokoro"); returns the path on success or None if that engine
-    isn't set up (or no lines were produced).
+    ("espeak"/"piper"/"kokoro"/"chatterbox"); `chatterbox_variant` ("turbo"/"original")
+    selects the Chatterbox model when that's the engine (None lets it default to Turbo).
+    Returns the path on success or None if that engine isn't set up (or no lines were
+    produced).
 
     It replays the exact same line logic as a live race through a record-only narrator
     (no screen, no waiting), gathers the script, and stitches the clips together."""
@@ -278,7 +281,7 @@ def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None
     play_race(history, speed=1e9, track=track, booth=booth, narrator=cap, director=director)
     cap.script.extend(booth.debrief(summarize_race(history, track), history, track, director.memory))
 
-    eng = make_narrator(engine)
+    eng = make_narrator(engine, variant=chatterbox_variant)
     if not eng.available:
         print(f"  [cannot render audio: {eng.status or engine + ' unavailable'}]")
         return None
@@ -295,6 +298,10 @@ if __name__ == "__main__":
     parser.add_argument("--voice", choices=["silent", "espeak", "piper", "kokoro", "chatterbox"],
                         default="silent",
                         help="who reads the commentary aloud (default: silent -- text only)")
+    parser.add_argument("--chatterbox", choices=["turbo", "original"], default=None,
+                        help="which Chatterbox model to use with --voice chatterbox: "
+                             "'turbo' (default -- lighter, acts on [laugh]/[sigh] tags) or "
+                             "'original' (the standard model). Ignored for other voices.")
     parser.add_argument("--track", default=None,
                         help="circuit to race: venue, country, GP, or nickname "
                              "(e.g. Monza, Spa, Monaco, Silverstone, Suzuka, Interlagos). "
@@ -322,11 +329,13 @@ if __name__ == "__main__":
         if args.voice == "silent":
             parser.error("--render needs a real --voice: espeak, piper, or kokoro")
         out = render_weekend_audio(track=track, path=args.render,
-                                   laps=args.laps, engine=args.voice)
+                                   laps=args.laps, engine=args.voice,
+                                   chatterbox_variant=args.chatterbox)
         if out:
             print(f"  Wrote {out}")
     else:
         # grid_pause / end_pause hold the pre/post-race screens long enough to read;
         # with a voice on, the race paces itself to the speech instead.
         run_weekend(track=track, speed=args.speed, laps=args.laps,
-                    grid_pause=10.0, end_pause=10.0, narrate=args.voice)
+                    grid_pause=10.0, end_pause=10.0, narrate=args.voice,
+                    chatterbox_variant=args.chatterbox)

@@ -551,13 +551,16 @@ class ChatterboxNarrator(Narrator):
         return _speak_via_wav(self, role, text) if self.available else False
 
 
-def make_narrator(kind="espeak"):
+def make_narrator(kind="espeak", variant=None):
     """Build a narrator by name: 'espeak', 'piper', 'kokoro', and 'chatterbox' are the
     real voices;
     'silent' forces no audio; 'capture' is the record-only export head. The real
     backends all degrade gracefully on their own (speak/to_wav return False when not
     set up), so we hand the real object back even when it isn't ready -- it carries a
-    `status` explaining why, and the engine treats a silent line exactly as before."""
+    `status` explaining why, and the engine treats a silent line exactly as before.
+
+    `variant` only applies to chatterbox: 'turbo' or 'original'. None lets the engine
+    pick its own default (the CHATTERBOX_VARIANT env var, which is Turbo unless set)."""
     if kind in (None, "none", "silent"):
         return SilentNarrator()
     if kind == "capture":
@@ -569,7 +572,7 @@ def make_narrator(kind="espeak"):
     if kind == "kokoro":
         return KokoroNarrator()
     if kind == "chatterbox":
-        return ChatterboxNarrator()
+        return ChatterboxNarrator(variant=variant)
     raise ValueError(f"unknown narrator: {kind!r}")
 
 
