@@ -1,0 +1,17 @@
+# Virtual environments (any: .venv, .venv-cb, ...)
+.venv*/
+ 
+# Python bytecode cache
+__pycache__/
+*.pyc
+ 
+# Piper voice packs (big binaries) -- the voices/README.md stays tracked
+voices/*.onnx
+voices/*.onnx.json
+ 
+# Chatterbox reference clips + any rendered race audio -- READMEs stay tracked
+*.wav
+
+# Race audio outputs
+output/
+
