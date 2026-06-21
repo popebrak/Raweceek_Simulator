@@ -362,6 +362,7 @@ class Booth:
         self._used_threads = set()                  # threads already run this race
         self._last_about = frozenset()              # subjects of the last thread (avoid back-to-back)
         self._battles = {}                          # frozenset(pair) -> {lap, swaps}: collapse trading places
+        self._pit_seen = False                       # has ANY pit stop been called yet? (for the "first to blink" moment)
 
     def _pick(self, bits, tags):
         """Keep Bits whose trigger is in `tags` and that we haven't used, then choose
@@ -469,12 +470,20 @@ class Booth:
         return f"{d} {phrase}{at} -- {flourish}"
 
     def call_pit(self, ps):
-        """Phill's call for a pit stop -- spoken, with the stint length in words."""
+        """Phill's call for a pit stop -- spoken, with the stint length in words. The
+        very first stop the booth calls all race gets the 'first to blink' drama; once
+        a stop's been called, a later driver's first stop is just that -- their first,
+        not the race's -- so it must not claim to be 'first' again."""
         onto = f" onto {ps.compound}s" if ps.compound else ""
         stint = _spell(ps.old_stint)
+        first_of_race = not self._pit_seen
+        self._pit_seen = True
         if ps.stop_number >= 2:
             return self._fresh("_pit_again", PIT_CALLS["again"]).format(
                 driver=ps.driver_name, onto=onto, stint=stint, ord=_ord(ps.stop_number))
+        if first_of_race:
+            return self._fresh("_pit_race_first", PIT_CALLS["race_first"]).format(
+                driver=ps.driver_name, onto=onto, stint=stint)
         return self._fresh("_pit_first", PIT_CALLS["first"]).format(
             driver=ps.driver_name, onto=onto, stint=stint)
 

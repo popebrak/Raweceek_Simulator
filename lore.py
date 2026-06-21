@@ -523,11 +523,22 @@ COLLISION_CALLS = {
 # Pit stops. {driver}, {stint} (spelled laps on the old set), {onto} (=" onto softs"
 # or ""), {ord} (spelled stop number for repeat stops: "second").
 PIT_CALLS = {
+    # The GENUINE first stop of the race -- the dam breaks, the strategic game opens.
+    # Only used for the first stop the booth calls all race (see call_pit), so the
+    # "first to blink" claim is always true.
+    "race_first": ["And {driver} blinks first -- the first stop of the race, in they come{onto}.",
+                   "{driver} is first to crack -- into the lane{onto}, and the stops are under way.",
+                   "Here come the stops! {driver} blinks first{onto} -- the strategic game begins.",
+                   "{driver} breaks cover first{onto} -- the first to commit, and the undercut chess starts here.",
+                   "There's the first move of the race -- {driver} into the pit lane{onto} ahead of everyone."],
+    # A driver's OWN first stop, AFTER others have already been in -- no "first" claim,
+    # because they are not first; they are simply making their first stop.
     "first": ["{driver} peels into the pit lane{onto}.",
-              "And {driver} blinks first -- in they come{onto}.",
               "{driver} comes in to serve the stop{onto}.",
               "Box, box for {driver} -- in for service{onto}.",
-              "{driver} dives into the lane after a {stint}-lap opening stint{onto}."],
+              "{driver} dives into the lane after a {stint}-lap opening stint{onto}.",
+              "And {driver} comes in for the first time{onto}.",
+              "{driver} ends the opening stint -- into the lane{onto}."],
     "again": ["{driver} is back in again{onto}.",
               "Another stop for {driver}{onto}.",
               "{driver} returns to the lane for the {ord} time{onto}.",
