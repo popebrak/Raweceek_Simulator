@@ -687,12 +687,68 @@ def make_narrator(kind="espeak", variant=None):
     raise ValueError(f"unknown narrator: {kind!r}")
 
 
+# --- micro-pacing -----------------------------------------------------------
+# The silence between two lines isn't fixed -- the render reads the lines and lets
+# the delivery breathe. A handoff between voices gets the base beat; the same voice
+# carrying on gets a tighter one; an unfinished thought (a trailing "--", as in a
+# closing-lap set-piece build) runs straight on into the next line; a line that ends
+# on a bang gets a beat of air to land; a short snap-back from the other voice (a
+# reclaim) comes in quick; and there's a small breath before a driver answers on the
+# podium. It's all derived from the flat script itself -- the speaker and how the line
+# ends -- so it works the same across the preview, the race and the debrief, none of
+# which carry the director's beat metadata this far down. Multipliers on the base gap,
+# then clamped so nothing ever runs together or drags. Tune to taste.
+PACE_SAME_SPEAKER  = 0.72   # the same voice carrying on -- tighter than a handoff
+PACE_RUN_ON        = 0.45   # the line ended unfinished ("--") -- run straight on
+PACE_LAND          = 1.35   # the line ended on a "!" -- give the drama a beat to land
+PACE_QUESTION      = 1.12   # a question hangs in the air a touch
+PACE_RECLAIM       = 0.60   # a short snap-back from the other voice lands quick
+PACE_PODIUM_BREATH = 1.15   # a small breath before a driver answers on the podium
+PACE_FLOOR         = 0.30   # never tighter than this fraction of the base
+PACE_CEIL          = 2.10   # never more air than this multiple of the base
+
+_BOOTH_ROLES = ("pbp", "colour", "report")
+
+
+def _inter_line_gap(prev, nxt, base):
+    """The silence to hold between two rendered lines, in seconds. `prev` and `nxt`
+    are (role, text). How the spoken line EXITS is the dominant cue (a bang lands, an
+    unfinished thought runs on); then ONE relationship adjustment on top for the
+    boundary (a reclaim, a podium breath, or the same voice carrying on). Clamped."""
+    role_p, text_p = prev
+    role_n, text_n = nxt
+    ended = text_p.rstrip()
+
+    # 1) How the spoken line exits -- the dominant cue, whoever speaks next.
+    if ended.endswith("--"):
+        mult = PACE_RUN_ON              # an unfinished thought: don't pause
+    elif ended.endswith("!"):
+        mult = PACE_LAND                # a bang: let it land
+    elif ended.endswith("?"):
+        mult = PACE_QUESTION            # a question: a touch of hang
+    else:
+        mult = 1.0
+
+    # 2) One relationship adjustment for the boundary (these are mutually exclusive by
+    #    role: a reclaim and a podium handoff are both handoffs, never same-speaker).
+    if (role_p != role_n and len(text_n.split()) <= 5
+            and text_n.rstrip()[-1:] in ".!"):
+        mult *= PACE_RECLAIM            # a short snap-back from the other voice
+    elif role_p == "report" and role_n not in _BOOTH_ROLES:
+        mult *= PACE_PODIUM_BREATH      # before a driver answers on the podium
+    elif role_p == role_n:
+        mult *= PACE_SAME_SPEAKER       # one voice carrying on
+
+    return max(PACE_FLOOR, min(PACE_CEIL, mult)) * base
+
+
 def render_script_to_wav(narrator, script, path, gap=0.35):
-    """Render a list of (role, text) lines to ONE WAV file, with a short silence
-    between lines. Returns True on success. The per-line clips come from the
-    narrator's to_wav; this just stitches them (same format throughout) and inserts
-    the gaps -- the basis of exporting a whole race as a single audio file."""
-    frames, params = [], None
+    """Render a list of (role, text) lines to ONE WAV file, with a breathing silence
+    between lines (see _inter_line_gap). Returns True on success. The per-line clips
+    come from the narrator's to_wav; this stitches them (same format throughout) and
+    inserts a gap sized to each boundary -- the basis of exporting a whole race as a
+    single audio file. `gap` is the BASE beat the pacing varies around."""
+    frames, params, voiced = [], None, []
     for role, text in script:
         fd, tmp = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
@@ -702,16 +758,18 @@ def render_script_to_wav(narrator, script, path, gap=0.35):
                     if params is None:
                         params = w.getparams()
                     frames.append(w.readframes(w.getnframes()))
+                    voiced.append((role, text))    # keep alignment: only lines that made sound
         finally:
             if os.path.exists(tmp):
                 os.remove(tmp)
     if params is None:
         return False
-    quiet = b"\x00" * int(params.framerate * params.sampwidth * params.nchannels * gap)
+    bytes_per_sec = params.framerate * params.sampwidth * params.nchannels
     with wave.open(path, "wb") as out:
         out.setparams(params)
         for i, fr in enumerate(frames):
             out.writeframes(fr)
             if i != len(frames) - 1:
-                out.writeframes(quiet)
+                secs = _inter_line_gap(voiced[i], voiced[i + 1], gap)
+                out.writeframes(b"\x00" * int(bytes_per_sec * secs))
     return True
