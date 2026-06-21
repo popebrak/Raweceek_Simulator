@@ -1644,6 +1644,47 @@ PREVIEW_STANDBY = [
     "This is it. Twenty cars, one green light to come. Stand by.",
 ]
 
+# --- the shows as conversations (give-and-take for the pre- and post-race programmes) --
+# Benny reacts to arriving at the circuit -- an occasional warm word after Phill's
+# welcome, so the show OPENS as two people, not one voice reading a card.
+PREVIEW_WELCOME_REACT = [
+    "Love this place. Always delivers.",
+    "Big one, this. Can't wait to get going.",
+    "Cracking venue to be at -- let's have a race.",
+    "Good to be here, Phill. The paddock's buzzing.",
+    "One of the great days out, this.",
+    "Right then. Let's see what they've brought.",
+    "Been looking forward to this one all week.",
+]
+
+# Phill's short response after Benny's read on the pole-sitter -- factual, agreeing, in
+# HIS register; he never adds a verdict of his own, he just takes the ball back.
+PHILL_POLE_RESPONSE = [
+    "Strong place to start, then.",
+    "A marker laid down, no question.",
+    "We'll see if it holds when the lights go out.",
+    "The front row's settled, then.",
+    "Noted -- and we'll be watching that closely.",
+    "Best seat in the house, as you say.",
+    "Pole's one thing. Sunday's another.",
+]
+
+# The booth reacts to a podium answer -- Benny with a verdict in his register, Phill with
+# a flat reportorial nod -- so the drivers are talked WITH, not just recorded. Each is a
+# (role, line) turn, so the reaction can come from either man. Generic enough to follow
+# any answer.
+BOOTH_PODIUM_REACT = [
+    ("colour", "For my money, that's the line of the day."),
+    ("colour", "Well said, that. Hard to argue with a word of it."),
+    ("colour", "See, that's why they won -- clear in the head, even now."),
+    ("pbp", "Strong words from the podium."),
+    ("colour", "I'll tell you what, they mean every syllable."),
+    ("pbp", "And there's the verdict, straight from the cockpit."),
+    ("colour", "Now THAT is a racing driver talking."),
+    ("pbp", "Nicely put, that."),
+    ("colour", "Mind you, you'd talk a good game too, having just won."),
+]
+
 # Benny's read on the pole-sitter, bucketed by their stat line. _pole_read() picks the
 # bucket from the numbers, then a phrasing from the pool. {name} is the pole-sitter.
 POLE_READ = {

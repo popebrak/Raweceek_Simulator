@@ -45,6 +45,8 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   PREVIEW_WELCOME, PREVIEW_POLE, PREVIEW_POLE_SOLO, PREVIEW_HANDOFF,
                   PREVIEW_STANDBY, POLE_READ, TRACK_TIP_OPENER, TRACK_TIP_PASS,
                   TRACK_TIP_TYRE, OBJECTIVISM_PREVIEW, WATCH_STRATEGIST, WATCH_CHARGER,
+                  # the shows as conversations -- give-and-take for pre/post-race
+                  PREVIEW_WELCOME_REACT, PHILL_POLE_RESPONSE, BOOTH_PODIUM_REACT,
                   # the rundown -- a periodic "state of the race" readout
                   RUNDOWN_OPENER, RUNDOWN_LEADER, RUNDOWN_POINTS_EDGE, RUNDOWN_BENNY,
                   # the debrief -- pooled spine + arc-driven "stories of the race"
@@ -901,28 +903,51 @@ class Booth:
         qualifiers = [d for d, lap, ok in quali if ok]
         turns = [("pbp", self._fresh("_prev_welcome", PREVIEW_WELCOME).format(
             circuit=track.circuit, name=track.name))]
+        # Benny reacts to being here -- the show OPENS as two people, not one voice
+        # reading a card.
+        if random.random() < 0.6:
+            turns.append(("colour", self._fresh("_prev_welcome_react", PREVIEW_WELCOME_REACT)))
+
+        # The middle is built as separate SEGMENTS and shuffled, so the show isn't the
+        # same nine-beat march every week -- the welcome has opened it, and the throw to
+        # Benny + the stand-by still close it cleanly. Order varies; coherence holds.
+        middle = []
 
         hist = self._pick(TRACK_LORE.get(self.circuit, []), {"any"})
         if hist:
-            turns.extend(hist.turns)
+            middle.append(list(hist.turns))
 
         if qualifiers:
             pole = qualifiers[0]
+            block = []
             if len(qualifiers) > 1:
-                turns.append(("pbp", self._fresh("_prev_pole", PREVIEW_POLE).format(
+                block.append(("pbp", self._fresh("_prev_pole", PREVIEW_POLE).format(
                     pole=pole.name, team=pole.team, second=qualifiers[1].name)))
             else:
-                turns.append(("pbp", self._fresh("_prev_pole_solo", PREVIEW_POLE_SOLO).format(
+                block.append(("pbp", self._fresh("_prev_pole_solo", PREVIEW_POLE_SOLO).format(
                     pole=pole.name, team=pole.team)))
-            turns.append(("colour", self._pole_read(pole)))
+            # The pole is the centrepiece: Phill announces, Benny READS it (sometimes in
+            # his verdict register), Phill takes the ball back -- a real exchange, not an
+            # announcement followed by a lone monologue.
+            read = self._pole_read(pole)
+            if random.random() < BENNY_VERDICT_CHANCE:
+                read = self._fresh("_benny_verdict", list(BENNY_VERDICT)) + " " + read
+            block.append(("colour", read))
+            if random.random() < 0.5:
+                block.append(("pbp", self._fresh("_prev_pole_resp", PHILL_POLE_RESPONSE)))
             watch = self._watch_name(qualifiers)
             if watch:
-                turns.append(("colour", watch))
+                block.append(("colour", watch))
+            middle.append(block)
 
-        # The running gag: write off the doomed Objectivism car before the lights even
-        # come on. Same joke every week, fresh wording every week.
-        turns.extend(random.choice(OBJECTIVISM_PREVIEW))
+        # The running gag: write off the doomed Objectivism car before the lights come on.
+        middle.append(list(random.choice(OBJECTIVISM_PREVIEW)))
 
+        random.shuffle(middle)
+        for seg in middle:
+            turns.extend(seg)
+
+        # Close: Phill throws to Benny, Benny sets the watch-points, Phill calls the grid up.
         turns.append(("pbp", self._fresh("_prev_handoff", PREVIEW_HANDOFF)))
         turns.append(("colour", self._track_tips(track)))
         turns.append(("pbp", self._fresh("_prev_standby", PREVIEW_STANDBY)))
@@ -941,14 +966,15 @@ class Booth:
 
         # How it was won -- pooled, so the same KIND of win doesn't draw the same words.
         if s.winner_from == 1 and s.lead_changes == 0:
-            turns.append(("colour", self._fresh("_debrief_won_dom",
-                          DEBRIEF_WON_DOMINANT).format(winner=s.winner)))
+            won = self._fresh("_debrief_won_dom", DEBRIEF_WON_DOMINANT).format(winner=s.winner)
         elif s.winner_from == 1:
-            turns.append(("colour", self._fresh("_debrief_won_fought",
-                          DEBRIEF_WON_FOUGHT).format(winner=s.winner)))
+            won = self._fresh("_debrief_won_fought", DEBRIEF_WON_FOUGHT).format(winner=s.winner)
         else:
-            turns.append(("colour", self._fresh("_debrief_won_charge",
-                          DEBRIEF_WON_CHARGE).format(winner=s.winner, start=_ord(s.winner_from))))
+            won = self._fresh("_debrief_won_charge", DEBRIEF_WON_CHARGE).format(
+                winner=s.winner, start=_ord(s.winner_from))
+        if random.random() < BENNY_VERDICT_CHANCE:      # Benny opens with his own register
+            won = self._fresh("_benny_verdict", list(BENNY_VERDICT)) + " " + won
+        turns.append(("colour", won))
 
         # The stories of the race -- the defining fights, read from the arcs the
         # director tracked. THIS is the memory wiring: the show recalls what we watched,
@@ -1091,18 +1117,34 @@ class Booth:
     def _interview(self, name, pos, team, final, history, summary):
         """One driver's interview: a few RACING questions earned by what actually
         happened to them, each answered in their own voice, then the philosophy
-        quote as the closer. The winner gets two angles; the others get one."""
+        quote as the closer. The winner gets two angles; the others get one. The
+        booth now reacts to the answers -- Suze asks, the driver answers, Phill or
+        Benny respond: a three-way conversation, not a flat question-and-answer."""
         turns = []
         angles = self._interview_angles(name, pos, final, history, summary)
         n_blocks = 2 if pos == 1 else 1
         for angle in angles[:n_blocks]:
             turns.extend(self._interview_beats(angle, name, final))
+            if random.random() < 0.4:                 # the booth chips in on the answer
+                turns.append(self._fresh_podium_react())
         quote = self._podium_quote(name)              # the closer: their philosophy line
         if quote:
             key = "winner" if pos == 1 else "other"
             turns.append(("report", self._fresh(f"_closer_{key}", PODIUM_CLOSER_Q[key])))
             turns.append((name, quote))
+            # The winner's closing line is the show's payoff -- the booth always lands on it.
+            if pos == 1:
+                turns.append(self._fresh_podium_react())
         return turns
+
+    def _fresh_podium_react(self):
+        """A booth reaction to a podium answer, no immediate repeat. Returned as a
+        (role, line) turn, so it can come from either Phill or Benny."""
+        last = self._last_runin.get("_podium_react")
+        pool = [i for i in range(len(BOOTH_PODIUM_REACT)) if i != last] or list(range(len(BOOTH_PODIUM_REACT)))
+        i = random.choice(pool)
+        self._last_runin["_podium_react"] = i
+        return BOOTH_PODIUM_REACT[i]
 
     def _interview_angles(self, name, pos, final, history, summary):
         """Which questions THIS driver has earned, most race-defining first. Always

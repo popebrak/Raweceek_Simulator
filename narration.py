@@ -28,17 +28,71 @@ import subprocess
 import tempfile
 import wave
 
+from drivers import GRID
+
+
+# --- casting the podium ------------------------------------------------------
+# In the post-race show the booth tags every driver's answer with that driver's
+# NAME as the role (not "pbp"). There are twenty of them, so rather than a clip
+# each, every driver is cast -- by gender, read from the grid -- into one of a few
+# same-gender voices. The assignment is stable per name (a name always maps to the
+# same slot), so whoever reaches the podium speaks in a consistent, gender-correct
+# voice. Suze, the pit reporter, is the role "report" and has her own voice.
+_DRIVER_GENDER = {d.name: getattr(d, "gender", "m") for d in GRID}
+
+
+def _build_driver_slots(n):
+    """Assign each driver a 0..n-1 voice slot, round-robin within their gender in grid
+    order -- so the n same-gender voices get used EVENLY (not clumped, as a hash would),
+    and a given driver always lands on the same slot."""
+    slots, seen = {}, {}
+    for d in GRID:
+        g = getattr(d, "gender", "m")
+        i = seen.get(g, 0)
+        slots[d.name] = i % n
+        seen[g] = i + 1
+    return slots
+
+
+_DRIVER_SLOTS = _build_driver_slots(3)       # three voices per gender
+
+
+def _is_driver(role):
+    """True if this role is a driver speaking (a podium quote), not a booth voice."""
+    return role in _DRIVER_GENDER
+
+
+def _cast_driver(name, pools, default):
+    """Pick a voice for a driver from a {'m': [...], 'f': [...]} map of same-gender
+    voices, by their grid gender and their fixed, evenly-spread slot. Falls back to
+    `default` if that gender's pool is empty."""
+    pool = pools.get(_DRIVER_GENDER.get(name, "m")) or []
+    if not pool:
+        return default
+    return pool[_DRIVER_SLOTS.get(name, 0) % len(pool)]
+
 
 # Per-role espeak settings, tuned for contrast inside espeak's narrow range. `voice`
 # is an espeak voice + variant (en-gb male variants m1..m7); speed is words/min;
-# pitch and amplitude are 0-99 / 0-200. Roles other than the two booth voices (e.g. a
-# driver's podium quote) fall back to DEFAULT_VOICE.
+# pitch and amplitude are 0-99 / 0-200. Roles other than the booth voices (a driver's
+# podium quote) are cast by gender from ESPEAK_DRIVER, falling back to DEFAULT_VOICE.
 ESPEAK_VOICE = {
     "pbp":    {"voice": "en-gb+m3", "speed": 178, "pitch": 64, "amplitude": 135},
     "colour": {"voice": "en-gb+m5", "speed": 150, "pitch": 32, "amplitude": 120},
     "report": {"voice": "en-gb+f3", "speed": 170, "pitch": 58, "amplitude": 130},  # Suze, the pit-lane reporter -- a third, distinct voice
 }
 DEFAULT_VOICE = {"voice": "en-gb+m2", "speed": 165, "pitch": 50, "amplitude": 125}
+
+# Podium voices, by gender -- three each, free (espeak's own variants, no files). A
+# driver is cast into one of their gender's three, stable per name.
+ESPEAK_DRIVER = {
+    "m": [{"voice": "en-gb+m1", "speed": 168, "pitch": 46, "amplitude": 128},
+          {"voice": "en-gb+m4", "speed": 160, "pitch": 54, "amplitude": 128},
+          {"voice": "en-gb+m6", "speed": 172, "pitch": 40, "amplitude": 128}],
+    "f": [{"voice": "en-gb+f1", "speed": 168, "pitch": 60, "amplitude": 128},
+          {"voice": "en-gb+f2", "speed": 162, "pitch": 66, "amplitude": 128},
+          {"voice": "en-gb+f4", "speed": 174, "pitch": 54, "amplitude": 128}],
+}
 
 ESPEAK_BIN = shutil.which("espeak-ng") or shutil.which("espeak")
 
@@ -147,8 +201,11 @@ class EspeakNarrator(Narrator):
             "espeak not found -- install espeak-ng for voices; running silent")
 
     def _opts(self, role):
-        """The -v/-s/-p/-a flags for a role (booth voice, or the plain default)."""
-        v = ESPEAK_VOICE.get(role, DEFAULT_VOICE)
+        """The -v/-s/-p/-a flags for a role -- a booth voice, a podium driver cast
+        by gender (ESPEAK_DRIVER), or the plain default."""
+        v = (ESPEAK_VOICE.get(role)
+             or (_cast_driver(role, ESPEAK_DRIVER, DEFAULT_VOICE)
+                 if _is_driver(role) else DEFAULT_VOICE))
         return ["-v", v["voice"], "-s", str(v["speed"]),
                 "-p", str(v["pitch"]), "-a", str(v["amplitude"])]
 
@@ -228,6 +285,14 @@ PIPER_VOICE = {
 }
 PIPER_DEFAULT = "en_US-ryan-high.onnx"                    # a third voice (podium, etc.)
 
+# Podium voices by gender. Piper needs a file per voice, so these are OPTIONAL: drop
+# the packs in to use them; any that are missing fall back to PIPER_DEFAULT, so the
+# drivers still get a non-Phill voice even with no extra packs installed.
+PIPER_DRIVER = {
+    "m": ["en_US-ryan-high.onnx", "en_GB-alan-low.onnx", "en_US-joe-medium.onnx"],
+    "f": ["en_US-amy-medium.onnx", "en_GB-jenny_dioco-medium.onnx", "en_US-kristin-medium.onnx"],
+}
+
 
 class PiperNarrator(Narrator):
     """Shells out to the `piper` CLI, one process per line, text on stdin -> WAV.
@@ -254,12 +319,19 @@ class PiperNarrator(Narrator):
             self.status = ""
 
     def _model(self, role):
-        """Path to the ONNX voice for a role, falling back to the lap-caller's voice
-        for any role without its own pack (so a podium quote still gets spoken)."""
-        name = PIPER_VOICE.get(role) or PIPER_VOICE["pbp"]
+        """Path to the ONNX voice for a role. Booth roles map directly; a podium driver
+        is cast by gender (PIPER_DRIVER); anything else, or any missing non-booth pack,
+        falls back to PIPER_DEFAULT -- the podium voice, NOT Phill, so a driver never
+        ends up sounding like the lap caller (which was the old bug)."""
+        if role in PIPER_VOICE:
+            name = PIPER_VOICE[role]
+        elif _is_driver(role):
+            name = _cast_driver(role, PIPER_DRIVER, PIPER_DEFAULT)
+        else:
+            name = PIPER_DEFAULT
         path = os.path.join(self.voice_dir, name)
-        if not os.path.exists(path) and role != "pbp":
-            path = os.path.join(self.voice_dir, PIPER_VOICE["pbp"])
+        if not os.path.exists(path) and role not in ("pbp", "colour"):
+            path = os.path.join(self.voice_dir, PIPER_DEFAULT)
         return path
 
     def command(self, role, wav_path):
@@ -288,6 +360,22 @@ KOKORO_VOICE = {
 }
 KOKORO_DEFAULT = ("a", "am_michael")
 KOKORO_RATE = 24000
+
+# Podium voices by gender (free -- Kokoro's own speakers, no files needed).
+KOKORO_DRIVER = {
+    "m": [("a", "am_michael"), ("a", "am_adam"), ("b", "bm_daniel")],
+    "f": [("b", "bf_emma"), ("a", "af_heart"), ("a", "af_bella")],
+}
+
+
+def _kokoro_voice(role):
+    """(lang, voice) for a role -- a booth voice, a podium driver cast by gender, or
+    the default. Keeps drivers off the booth voices and gives them their own."""
+    if role in KOKORO_VOICE:
+        return KOKORO_VOICE[role]
+    if _is_driver(role):
+        return _cast_driver(role, KOKORO_DRIVER, KOKORO_DEFAULT)
+    return KOKORO_DEFAULT
 
 
 class KokoroNarrator(Narrator):
@@ -341,7 +429,7 @@ class KokoroNarrator(Narrator):
 
     def _pcm(self, role, text):
         """Synthesize one line to 16-bit little-endian PCM bytes (mono, 24 kHz)."""
-        lang, voice = KOKORO_VOICE.get(role, KOKORO_DEFAULT)
+        lang, voice = _kokoro_voice(role)
         out = []
         for chunk in self._pipeline(lang)(text, voice=voice):
             audio = chunk[-1]                       # (graphemes, phonemes, audio)
@@ -416,6 +504,20 @@ CHATTERBOX_VARIANT = (os.environ.get("CHATTERBOX_VARIANT") or "turbo").lower()
 CHATTERBOX_VOICE = {
     "pbp":    {"ref": "phill.wav",  "exaggeration": 1.15},   # Phill -- a touch animated
     "colour": {"ref": "benny.wav", "exaggeration": 0.7},    # Benny -- dry and level
+    "report": {"ref": "suze.wav",  "exaggeration": 0.9},    # Suze -- the pit-lane reporter
+}
+# Podium voices, by gender: three each. A driver is cast into one of their gender's
+# three (stable per name), so whoever reaches the podium speaks in a consistent,
+# gender-correct voice instead of all twenty collapsing to the model default. Drop the
+# six clips in refs/ (driver_m1..3.wav, driver_f1..3.wav); any missing clip falls back
+# to the model's built-in voice for that line.
+CHATTERBOX_DRIVER = {
+    "m": [{"ref": "driver_m1.wav", "exaggeration": 0.9},
+          {"ref": "driver_m2.wav", "exaggeration": 0.9},
+          {"ref": "driver_m3.wav", "exaggeration": 0.9}],
+    "f": [{"ref": "driver_f1.wav", "exaggeration": 0.9},
+          {"ref": "driver_f2.wav", "exaggeration": 0.9},
+          {"ref": "driver_f3.wav", "exaggeration": 0.9}],
 }
 CHATTERBOX_DEFAULT = {"ref": None, "exaggeration": 1.0}
 
@@ -502,10 +604,19 @@ class ChatterboxNarrator(Narrator):
             return
         print("  [chatterbox: ready]")
 
+    def _cfg(self, role):
+        """Voice config for a role: a booth voice, Suze ('report'), a podium driver
+        cast by gender (CHATTERBOX_DRIVER), or the built-in default."""
+        if role in CHATTERBOX_VOICE:
+            return CHATTERBOX_VOICE[role]
+        if _is_driver(role):
+            return _cast_driver(role, CHATTERBOX_DRIVER, CHATTERBOX_DEFAULT)
+        return CHATTERBOX_DEFAULT
+
     def _ref(self, role):
         """The reference-clip path for a role, or None (built-in voice) if there's no
         configured clip or the file is missing."""
-        name = CHATTERBOX_VOICE.get(role, CHATTERBOX_DEFAULT).get("ref")
+        name = self._cfg(role).get("ref")
         if not name:
             return None
         path = os.path.join(self.ref_dir, name)
@@ -518,7 +629,7 @@ class ChatterboxNarrator(Narrator):
             model = self._ensure_model()
         except Exception:
             return False
-        cfg = CHATTERBOX_VOICE.get(role, CHATTERBOX_DEFAULT)
+        cfg = self._cfg(role)
         kwargs = {}
         ref = self._ref(role)
         if ref:

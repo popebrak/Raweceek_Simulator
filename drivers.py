@@ -37,6 +37,7 @@ class Driver:
     launch: float = 0.5      # getaway off the line, 0.0 to 1.0 -- a separate gift from racecraft
     tire_management: float = 0.5  # how gently the tyres are used, 0.0 to 1.0 -- higher wears slower
     strategy: float = 0.5    # judgement of the tyre/pit plan, 0.0 to 1.0 -- higher picks better
+    gender: str = "m"        # podium-voice casting only ("m"/"f"); default male, the women tagged below
 
 
 GRID = [
@@ -46,15 +47,15 @@ GRID = [
 
     # Vanguard -- the revolutionaries
     Driver("Karl Marx",            "Vanguard",      90.0, 0.20, 0.55, 0.40, 0.82, 0.85),  # the long game incarnate: nurses the tyres and plans the grind to perfection
-    Driver("Rosa Luxemburg",       "Vanguard",      89.9, 0.18, 0.75, 0.74, 0.60, 0.58),  # spontaneity over the master plan -- trusts the moment
+    Driver("Rosa Luxemburg",       "Vanguard",      89.9, 0.18, 0.75, 0.74, 0.60, 0.58, gender="f"),  # spontaneity over the master plan -- trusts the moment
 
     # Black Banner -- the anarchists
     Driver("Mikhail Bakunin",      "Black Banner",  89.8, 0.26, 0.80, 0.82, 0.30, 0.30),  # all-out charger: blistering, but no patience for a pit-wall plan
-    Driver("Emma Goldman",         "Black Banner",  90.1, 0.21, 0.72, 0.75, 0.50, 0.52),  # fierce and fluent, but strategy is not her fight
+    Driver("Emma Goldman",         "Black Banner",  90.1, 0.21, 0.72, 0.75, 0.50, 0.52, gender="f"),  # fierce and fluent, but strategy is not her fight
 
     # Abyss -- the existentialists
     Driver("Friedrich Nietzsche",  "Abyss",         89.6, 0.22, 0.62, 0.70, 0.35, 0.42),  # will to power, not to spreadsheets: the quickest, the rashest gambler
-    Driver("Simone de Beauvoir",   "Abyss",         89.9, 0.16, 0.82, 0.66, 0.82, 0.82),  # rigorous and systematic -- a plan as precise as her prose
+    Driver("Simone de Beauvoir",   "Abyss",         89.9, 0.16, 0.82, 0.66, 0.82, 0.82, gender="f"),  # rigorous and systematic -- a plan as precise as her prose
 
     # Ends & Means -- the strategists
     Driver("Niccolò Machiavelli",  "Ends & Means",  90.2, 0.19, 0.92, 0.55, 0.88, 0.96),  # THE strategist: a slow car wielded with a cold, perfect race mind
@@ -74,10 +75,10 @@ GRID = [
 
     # Rights of Man -- the revolutionary pamphleteers
     Driver("Thomas Paine",         "Rights of Man", 90.3, 0.22, 0.67, 0.64, 0.62, 0.52),  # common sense over cunning -- a plain, honest strategy
-    Driver("Mary Wollstonecraft",  "Rights of Man", 90.2, 0.18, 0.76, 0.66, 0.76, 0.74),  # rigorous and principled, a clear-eyed plan
+    Driver("Mary Wollstonecraft",  "Rights of Man", 90.2, 0.18, 0.76, 0.66, 0.76, 0.74, gender="f"),  # rigorous and principled, a clear-eyed plan
 
     # Objectivism -- two individualists who will not yield, draft, or finish.
     # Racecraft 0.0: their philosophy IS their undoing. They retire every race.
-    Driver("Ayn Rand",             "Objectivism",   90.6, 0.30, 0.00, 0.25, 0.20, 0.15),  # the pit wall is a collective; she will not be told when to stop
+    Driver("Ayn Rand",             "Objectivism",   90.6, 0.30, 0.00, 0.25, 0.20, 0.15, gender="f"),  # the pit wall is a collective; she will not be told when to stop
     Driver("Max Stirner",          "Objectivism",   90.7, 0.32, 0.00, 0.22, 0.20, 0.12),  # the egoist: a plan is just another spook to be ignored
 ]
