@@ -1084,7 +1084,8 @@ class Booth:
         elif getattr(s, "cautions", 0):
             turns.append(("colour", self._fresh("_debrief_caution", DEBRIEF_CAUTION)))
 
-        # The podium interview -- unchanged: a real give-and-take in each driver's voice.
+        # The podium interview -- Suze and the drivers ONLY. A real broadcast never
+        # has the booth talking over a podium answer; they wait, then pick it up.
         podium = s.podium[:3]
         if podium:
             turns.append(random.choice(PODIUM_HANDOFF))
@@ -1092,6 +1093,7 @@ class Booth:
             for pos, name, team in podium:
                 turns.extend(self._interview(name, pos, team, final, history, s))
             turns.append(("report", "Plenty to chew on -- back to you in the booth."))
+            turns.append(self._fresh_podium_react())  # NOW the booth lands on it, once, after the handback
 
         # Sign-off -- pooled both sides now.
         turns.append(("pbp", self._fresh("_debrief_signoff",
@@ -1193,28 +1195,24 @@ class Booth:
         """One driver's interview: a few RACING questions earned by what actually
         happened to them, each answered in their own voice, then the philosophy
         quote as the closer. The winner gets two angles; the others get one. The
-        booth now reacts to the answers -- Suze asks, the driver answers, Phill or
-        Benny respond: a three-way conversation, not a flat question-and-answer."""
+        booth stays OUT of it -- a podium interview is Suze and the driver alone, the
+        way a real broadcast runs it. The booth has its say once Suze hands back."""
         turns = []
         angles = self._interview_angles(name, pos, final, history, summary)
         n_blocks = 2 if pos == 1 else 1
         for angle in angles[:n_blocks]:
             turns.extend(self._interview_beats(angle, name, final))
-            if random.random() < 0.4:                 # the booth chips in on the answer
-                turns.append(self._fresh_podium_react())
         quote = self._podium_quote(name)              # the closer: their philosophy line
         if quote:
             key = "winner" if pos == 1 else "other"
             turns.append(("report", self._fresh(f"_closer_{key}", PODIUM_CLOSER_Q[key])))
             turns.append((name, quote))
-            # The winner's closing line is the show's payoff -- the booth always lands on it.
-            if pos == 1:
-                turns.append(self._fresh_podium_react())
         return turns
 
     def _fresh_podium_react(self):
-        """A booth reaction to a podium answer, no immediate repeat. Returned as a
-        (role, line) turn, so it can come from either Phill or Benny."""
+        """The booth's one reflection on the podium, played AFTER Suze hands back --
+        never over an answer. No immediate repeat. A (role, line) turn, so it can
+        come from either Phill or Benny."""
         last = self._last_runin.get("_podium_react")
         pool = [i for i in range(len(BOOTH_PODIUM_REACT)) if i != last] or list(range(len(BOOTH_PODIUM_REACT)))
         i = random.choice(pool)
