@@ -28,6 +28,8 @@ from drivers import GRID
 from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   GENERIC_INCIDENT, GENERIC_OVERTAKE, GENERIC_PIT,
                   Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK,
+                  # the duo texture -- Benny's register, Phill's reclaim & set-piece
+                  BENNY_VERDICT, PHILL_RECLAIM, RUNIN_SETPIECE,
                   # the calls -- Phill's factual lines, now owned by the booth
                   START_CALLS, OVERTAKE_CALLS, BATTLE_CALLS, BATTLE_REIGNITE,
                   BATTLE_CONTACT, BATTLE_UNDERCUT, SOLO_RETIRE,
@@ -163,6 +165,20 @@ def _at(loc):
 # How often an ORDINARY pass (no authored rivalry) earns a line about the passer.
 # A genuine rivalry always gets called; this keeps us from reacting to every lunge.
 PLAIN_OVERTAKE_COLOUR = 0.35
+
+# The duo texture (tuned from real-booth analysis). On a FLAT single-line reaction:
+# how often Benny leads with his verdict/causal register, and how often Phill then
+# reclaims the call with a flat factual closer -- the even back-and-forth a real
+# booth runs. Hand-authored exchanges already do this and are untouched.
+BENNY_VERDICT_CHANCE = 0.5
+PHILL_RECLAIM_CHANCE = 0.45
+
+# Phill's closing-laps set-piece: in a genuine nail-biter inside the final few laps,
+# the lead caller occasionally holds the floor for an extended solo build instead of
+# the usual one-line exchange. He is the ONLY voice who does this -- the analysis
+# showed the colour man never holds court that long.
+SETPIECE_LAPS = 4
+SETPIECE_CHANCE = 0.45
 
 # Two cars trading the same place within this many laps reads as ONE ongoing scrap,
 # not a string of identical "X passes Y" calls. The booth collapses the flicker.
@@ -493,20 +509,39 @@ class Booth:
         return f"The lights are off, and we go racing in {self.circuit}!"
 
     # --- event-triggered colour ---------------------------------------------
+    def _duo_texture(self, bit, allow_reclaim=True):
+        """Lift a FLAT single-line colour reaction toward the measured duo shape:
+        Benny sometimes leads with his own register (a verdict or a causal 'watch
+        this'), and Phill sometimes reclaims the call afterwards with a short, FLAT,
+        factual closer -- the even caller -> colour -> caller back-and-forth a real
+        booth runs. A reaction that is already an authored exchange (more than one
+        turn, or a Phill line) is left exactly as written -- those already do this."""
+        if bit is None or len(bit.turns) != 1 or bit.turns[0][0] != "colour":
+            return bit
+        line = bit.turns[0][1]
+        if random.random() < BENNY_VERDICT_CHANCE:
+            line = self._fresh("_benny_verdict", list(BENNY_VERDICT)) + " " + line
+        turns = [("colour", line)]
+        if allow_reclaim and random.random() < PHILL_RECLAIM_CHANCE:
+            turns.append(("pbp", self._fresh("_phill_reclaim", list(PHILL_RECLAIM))))
+        return banter(turns)
+
     def for_overtake(self, ov):
         """The booth's reaction to a completed pass. A real rivalry is the money
         moment and always plays; the start gets a quick character quip only for the
         drivers who have one; an ordinary pass gets a reaction only sometimes, drawn
-        from the passer's own lines or, failing that, a generic one for variety."""
+        from the passer's own lines or, failing that, a generic one for variety.
+        Flat one-liners are given the duo texture; authored exchanges pass through."""
         if ov.location == "the start":
-            return self._pick(DRIVER_LORE.get(ov.passer, []), {"start"})
+            return self._duo_texture(self._pick(DRIVER_LORE.get(ov.passer, []), {"start"}))
         # Directional: the lore names who passed whom, so only this ordering fits.
         gold = self._pick(PAIR_LORE.get((ov.passer, ov.passed), []), {"overtake"})
         if gold:
-            return gold
+            return self._duo_texture(gold)
         if random.random() < PLAIN_OVERTAKE_COLOUR:
-            return (self._pick(DRIVER_LORE.get(ov.passer, []), {"overtake", "any"})
-                    or self._pick(GENERIC_OVERTAKE, {"overtake"}))
+            return self._duo_texture(
+                self._pick(DRIVER_LORE.get(ov.passer, []), {"overtake", "any"})
+                or self._pick(GENERIC_OVERTAKE, {"overtake"}))
         return None
 
     def for_incident(self, inc):
@@ -515,10 +550,11 @@ class Booth:
         then a generic one so the colour man never repeats himself across crashes."""
         pool = DRIVER_LORE.get(inc.driver_name, [])
         if inc.retirement:
-            return (self._pick(pool, {"retirement"})
-                    or self._pick(pool, {"incident"})
-                    or self._pick(GENERIC_INCIDENT, {"incident"})
-                    or self._pick(pool, {"any"}))
+            return self._duo_texture(
+                self._pick(pool, {"retirement"})
+                or self._pick(pool, {"incident"})
+                or self._pick(GENERIC_INCIDENT, {"incident"})
+                or self._pick(pool, {"any"}))
         return (self._pick(pool, {"incident"})
                 or self._pick(GENERIC_INCIDENT, {"incident"})
                 or self._pick(pool, {"any"}))
@@ -617,9 +653,32 @@ class Booth:
 
         count = f"{_spell(to_go).capitalize()} {'lap' if to_go == 1 else 'laps'} to go"
         fmt = {"count": count, "ldr": leader.name, "sec": second.name if second else ""}
+
+        # A genuine nail-biter inside the final few laps is Phill's set-piece: the
+        # lead caller holds the floor for an extended, escalating solo build, the way
+        # the real booth lets its play-by-play man run when it's on the line. Benny
+        # stays out, bar a short word at the end. This is the only place one voice
+        # holds court this long -- it's deliberately Phill's, and never Benny's.
+        if bucket == "close" and to_go <= SETPIECE_LAPS and random.random() < SETPIECE_CHANCE:
+            build = self._fresh_setpiece()
+            turns = [("pbp", line.format(**fmt)) for line in build]
+            if random.random() < 0.6:
+                turns.append(("colour", self._fresh_runin("close", "colour").format(**fmt)))
+            return banter(turns)
+
         phill = self._fresh_runin(bucket, "pbp").format(**fmt)
         benny = self._fresh_runin(bucket, "colour").format(**fmt)
         return banter([("pbp", phill), ("colour", benny)])
+
+    def _fresh_setpiece(self):
+        """Pick one of Phill's multi-line set-piece builds, never the same one twice
+        running -- so a tense run that triggers it on consecutive laps still escalates
+        differently each time."""
+        last = self._last_runin.get("_setpiece")
+        pool = [i for i in range(len(RUNIN_SETPIECE)) if i != last] or list(range(len(RUNIN_SETPIECE)))
+        i = random.choice(pool)
+        self._last_runin["_setpiece"] = i
+        return RUNIN_SETPIECE[i]
 
     def _fresh_runin(self, bucket, role):
         """Pick a run-in template, never the same one twice running for this bucket

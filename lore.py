@@ -230,6 +230,62 @@ GENERIC_PIT = [
 # afternoon of passing and stopping never reads from a script.
 # =============================================================================
 
+# =============================================================================
+# THE DUO TEXTURE -- measured from a real two-man booth (dev analysis, not shipped).
+# Three findings drive these pools:
+#   * The colour man reasons and JUDGES -- he leans on opinion ("I think", "for my
+#     money") and causal openers ("so", "now", "see"). The lap caller does neither.
+#   * The lead caller REPORTS, never editorialises -- when he takes the ball back
+#     after a reaction, it's a flat factual closer, not a verdict.
+#   * The lead is the only one who holds a long solo: an extended set-piece build
+#     when the race is on the line. The colour man never holds court that long.
+# These lift the FLAT single-line reactions toward that shape. The hand-authored
+# PAIR_LORE exchanges already have it, and are left alone.
+# =============================================================================
+
+# Benny leads a reaction with his own register -- an opinion or a causal "watch this".
+# Prepended to a plain colour line to turn a zinger into a read. Phill never uses these.
+BENNY_VERDICT = [
+    "I'll tell you what --",
+    "For my money --",
+    "Mind you --",
+    "See, that's the thing --",
+    "So watch this --",
+    "Now, this is the bit --",
+]
+
+# Phill reclaims the call after Benny's word -- short, factual, no opinion. This is
+# what makes the handoff read both ways (caller -> colour -> caller), the even
+# back-and-forth a real booth runs. Matches his clipped in-exchange voice.
+PHILL_RECLAIM = [
+    "And the place is held.",
+    "Done, and they race on.",
+    "Through, and gone.",
+    "Order settled -- for now.",
+    "On to the next, then.",
+    "And up the road they go.",
+    "That's that one done.",
+]
+
+# Phill's set-piece: an extended solo build for a genuine nail-biter in the closing
+# laps -- the lead caller running, uninterrupted, the way the real booth lets him.
+# Each entry is a 2-3 line build using {count}, {ldr}, {sec}. Factual and escalating,
+# never a verdict -- the tension comes from the race, not from an opinion about it.
+RUNIN_SETPIECE = [
+    ["{count} -- and {sec} is right with {ldr} now, glued to the back of them.",
+     "Into the final sequence, {sec} looking for a way, {ldr} covering every line --",
+     "-- and this is going to the flag!"],
+    ["{count}, and the gap is nothing. {ldr} leads, {sec} hunting.",
+     "Every corner now, {sec} is closer -- {ldr} has nowhere to hide and nothing in hand.",
+     "We are going to settle this on the last lap!"],
+    ["{count} -- {ldr} from {sec}, and you can throw a blanket over them.",
+     "{sec} has a run! Down towards the braking zone, side by side --",
+     "-- and they go through together, still nothing in it!"],
+    ["{count}. {ldr} out front, {sec} all over the back of the car.",
+     "This is flat out, both of them, not a tenth to spare anywhere on the lap --",
+     "-- and the crowd are on their feet for the run to the line!"],
+]
+
 # Getaways off the line, by how big the launch was.
 START_CALLS = {
     "lead": ["{driver} BEATS them all off the line -- leads into Turn 1!",
