@@ -46,6 +46,8 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   PREVIEW_WELCOME, PREVIEW_POLE, PREVIEW_POLE_SOLO, PREVIEW_HANDOFF,
                   PREVIEW_STANDBY, POLE_READ, TRACK_TIP_OPENER, TRACK_TIP_PASS,
                   TRACK_TIP_TYRE, OBJECTIVISM_PREVIEW, WATCH_STRATEGIST, WATCH_CHARGER,
+                  # the revamped Countdown -- character pole reads + grid storylines
+                  POLE_CHARACTER, PREVIEW_MATCHUP, PREVIEW_WEATHER, PREVIEW_CORNER,
                   # the shows as conversations -- give-and-take for pre/post-race
                   PREVIEW_WELCOME_REACT, PHILL_POLE_RESPONSE, BOOTH_PODIUM_REACT,
                   # the rundown -- a periodic "state of the race" readout
@@ -968,65 +970,152 @@ class Booth:
 
     # --- the shows: off-clock segments before and after the race ------------
     def preview(self, quali, track):
-        """The 'Countdown to Green': set the scene, the track's history, the top of
-        the grid, and what to watch. Returns a list of (role, line) turns the show
-        plays in order. Every beat is drawn FRESH from a pool (welcome, pole, the
-        hand-off, the stand-by), so the show no longer reads the same way twice -- and
-        the Objectivism car gets written off before a wheel turns, a different way each
-        race. Still generated from the qualifying result and the track's own numbers,
-        so it stays accurate to THIS weekend."""
+        """The 'Countdown to Green'. A branded open (the Political Philosophy Racing
+        League, every week), then a MIDDLE built from a menu of segments and varied
+        race to race -- the pole read in character, the grid's own storylines (rivals
+        lining up to renew an old grudge), and a rotating bit of scene-setting -- then
+        a clean close into the lights. The substance changes weekly, not just the
+        wording, because the storylines are generated from THIS grid and THIS track."""
         qualifiers = [d for d, lap, ok in quali if ok]
+        # OPEN -- the brand, always, then Benny's warm word so it's two people talking.
         turns = [("pbp", self._fresh("_prev_welcome", PREVIEW_WELCOME).format(
             circuit=track.circuit, name=track.name))]
-        # Benny reacts to being here -- the show OPENS as two people, not one voice
-        # reading a card.
         if random.random() < 0.6:
             turns.append(("colour", self._fresh("_prev_welcome_react", PREVIEW_WELCOME_REACT)))
 
-        # The middle is built as separate SEGMENTS and shuffled, so the show isn't the
-        # same nine-beat march every week -- the welcome has opened it, and the throw to
-        # Benny + the stand-by still close it cleanly. Order varies; coherence holds.
-        middle = []
-
-        hist = self._pick(TRACK_LORE.get(self.circuit, []), {"any"})
-        if hist:
-            middle.append(list(hist.turns))
-
-        if qualifiers:
-            pole = qualifiers[0]
-            block = []
-            if len(qualifiers) > 1:
-                block.append(("pbp", self._fresh("_prev_pole", PREVIEW_POLE).format(
-                    pole=pole.name, team=pole.team, second=qualifiers[1].name)))
-            else:
-                block.append(("pbp", self._fresh("_prev_pole_solo", PREVIEW_POLE_SOLO).format(
-                    pole=pole.name, team=pole.team)))
-            # The pole is the centrepiece: Phill announces, Benny READS it (sometimes in
-            # his verdict register), Phill takes the ball back -- a real exchange, not an
-            # announcement followed by a lone monologue.
-            read = self._pole_read(pole)
-            if random.random() < BENNY_VERDICT_CHANCE:
-                read = self._fresh("_benny_verdict", list(BENNY_VERDICT)) + " " + read
-            block.append(("colour", read))
-            if random.random() < 0.5:
-                block.append(("pbp", self._fresh("_prev_pole_resp", PHILL_POLE_RESPONSE)))
-            watch = self._watch_name(qualifiers)
-            if watch:
-                block.append(("colour", watch))
-            middle.append(block)
-
-        # The running gag: write off the doomed Objectivism car before the lights come on.
-        middle.append(list(random.choice(OBJECTIVISM_PREVIEW)))
-
-        random.shuffle(middle)
+        # MIDDLE -- the pole leads the grid talk (natural broadcast order); the
+        # storylines, the extra and the gag shuffle behind it for variety. Order
+        # varies; the open and the close still bracket it, so coherence holds.
+        middle = self._preview_segments(qualifiers, track)
+        if middle:
+            head, tail = middle[0], middle[1:]
+            random.shuffle(tail)
+            middle = [head] + tail
         for seg in middle:
             turns.extend(seg)
 
-        # Close: Phill throws to Benny, Benny sets the watch-points, Phill calls the grid up.
+        # CLOSE -- Phill throws to Benny for the watch-points, then brings up the grid.
         turns.append(("pbp", self._fresh("_prev_handoff", PREVIEW_HANDOFF)))
         turns.append(("colour", self._track_tips(track)))
         turns.append(("pbp", self._fresh("_prev_standby", PREVIEW_STANDBY)))
         return turns
+
+    def _preview_segments(self, qualifiers, track):
+        """The menu. Always in: the pole (the centrepiece) and the Objectivism
+        write-off (the running gag). The heart: up to two grid storylines -- real
+        rivalries lining up near each other. Then ONE rotating extra for texture
+        (track history, the weather outlook, a name to watch, or a key-corner call),
+        so the show's substance differs week to week, not just its phrasing."""
+        segments = []
+        if qualifiers:
+            segments.append(self._seg_pole(qualifiers))
+        segments.extend(self._grid_storylines(qualifiers))     # 0-2, the centrepiece
+
+        extras = []
+        hist = self._pick(TRACK_LORE.get(self.circuit, []), {"any"})
+        if hist:
+            extras.append(list(hist.turns))
+        wx = self._seg_weather(track)
+        if wx:
+            extras.append(wx)
+        watch = self._seg_watch(qualifiers)
+        if watch:
+            extras.append(watch)
+        scene = self._seg_scene(track)
+        if scene:
+            extras.append(scene)
+        if extras:
+            segments.append(random.choice(extras))            # one extra -- keep it tight
+
+        segments.append(list(random.choice(OBJECTIVISM_PREVIEW)))  # the gag, always
+        return segments
+
+    def _seg_pole(self, qualifiers):
+        """The pole block: Phill announces the front row, Benny READS the pole-sitter
+        in character (who they are, not just their numbers), Phill sometimes takes the
+        ball back. The centrepiece of the grid, given the weight it deserves."""
+        pole = qualifiers[0]
+        block = []
+        if len(qualifiers) > 1:
+            block.append(("pbp", self._fresh("_prev_pole", PREVIEW_POLE).format(
+                pole=pole.name, team=pole.team, second=qualifiers[1].name)))
+        else:
+            block.append(("pbp", self._fresh("_prev_pole_solo", PREVIEW_POLE_SOLO).format(
+                pole=pole.name, team=pole.team)))
+        read = self._pole_read(pole)
+        if random.random() < BENNY_VERDICT_CHANCE:
+            read = self._fresh("_benny_verdict", list(BENNY_VERDICT)) + " " + read
+        block.append(("colour", read))
+        if random.random() < 0.5:
+            block.append(("pbp", self._fresh("_prev_pole_resp", PHILL_POLE_RESPONSE)))
+        return block
+
+    def _grid_storylines(self, qualifiers):
+        """The grid's own drama. Scan the known rivalries; for any pair both on the
+        grid, WEIGHT by how high up and how close together they start -- a feud you'll
+        actually SEE is worth more than one buried in the order -- then SAMPLE up to
+        two (never featuring one driver twice). Sampling, not strict top-two, keeps the
+        front-row rivalry favoured without letting the fastest pair headline every
+        single week. This is what makes the Countdown specific to the day."""
+        pos = {d.name: i + 1 for i, d in enumerate(qualifiers)}
+        weighted = []
+        for pair in PREVIEW_MATCHUP:
+            if not pair <= set(pos):
+                continue
+            ranked = sorted(pos[n] for n in pair)
+            ahead_pos, behind_pos = ranked[0], ranked[1]
+            gap = behind_pos - ahead_pos
+            front = (ahead_pos + behind_pos) / 2.0
+            weight = max(0.3, 8.0 - gap * 0.7 - front * 0.35)   # close + front = likelier, never zero
+            weighted.append((weight, pair, ahead_pos, behind_pos))
+
+        out, used = [], set()
+        while weighted and len(out) < 2:
+            total = sum(w for w, *_ in weighted)
+            r = random.uniform(0, total)
+            upto = 0.0
+            for idx, (w, pair, ahead_pos, behind_pos) in enumerate(weighted):
+                upto += w
+                if upto >= r:
+                    chosen = idx
+                    break
+            else:
+                chosen = len(weighted) - 1
+            _w, pair, ahead_pos, behind_pos = weighted.pop(chosen)
+            if used & pair:
+                continue
+            ahead = next(n for n in pair if pos[n] == ahead_pos)
+            behind = next(n for n in pair if pos[n] == behind_pos)
+            bit = self._fresh(f"_matchup_{tuple(sorted(pair))}", PREVIEW_MATCHUP[pair])
+            seg = [(role, line.format(ahead=ahead, behind=behind,
+                                      ahead_ord=_ord(ahead_pos), behind_ord=_ord(behind_pos)))
+                   for role, line in bit.turns]
+            out.append(seg)
+            used |= pair
+        return out
+
+    def _seg_weather(self, track):
+        """A forecast beat, scaled to the track's rain_chance -- flagged when it
+        matters, skipped about half the time when the day's plainly dry."""
+        rc = getattr(track, "rain_chance", 0.0)
+        bucket = "likely" if rc >= 0.30 else "possible" if rc >= 0.15 else "dry"
+        if bucket == "dry" and random.random() < 0.5:
+            return None
+        return [("colour", self._fresh(f"_prev_wx_{bucket}", PREVIEW_WEATHER[bucket]))]
+
+    def _seg_watch(self, qualifiers):
+        """A name to watch from down the order -- the existing buried-charger /
+        strategist read, presented as its own preview segment."""
+        watch = self._watch_name(qualifiers)
+        return [("colour", watch)] if watch else None
+
+    def _seg_scene(self, track):
+        """A key-corner callout, naming where this circuit tends to be decided."""
+        corners = [c.name for c in getattr(track, "corners", []) if getattr(c, "overtaking", False)]
+        if not corners:
+            return None
+        return [("colour", self._fresh("_prev_corner", PREVIEW_CORNER).format(
+            corner=random.choice(corners)))]
 
     def debrief(self, summary, history, track, memory=None):
         """The post-race show. Its spine is now the race's ACTUAL arcs (read from the
@@ -1142,9 +1231,13 @@ class Booth:
 
     # --- show helpers -------------------------------------------------------
     def _pole_read(self, d):
-        """Benny's one-line read on the pole-sitter -- bucket by the stat line, then a
-        phrasing picked fresh from the pool, so the same kind of pole-sitter doesn't
-        always draw the same words."""
+        """Benny's read on the pole-sitter. In character first -- WHO this is, the
+        politics carried by the fact of the pole (POLE_CHARACTER) -- and only if this
+        driver has no character line do we fall back to the stat-bucket read, so the
+        front of the grid always means something about the philosopher sitting on it."""
+        char = POLE_CHARACTER.get(d.name)
+        if char:
+            return self._fresh(f"_pole_char_{d.name}", char).format(name=d.name)
         if d.strategy < 0.35:
             bucket = "quick_no_head"
         elif d.racecraft >= 0.78:

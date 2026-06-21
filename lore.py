@@ -1730,13 +1730,14 @@ TRACK_LORE = {
 
 # Phill opens the show.
 PREVIEW_WELCOME = [
-    "Welcome to {circuit} -- we are set for the {name}.",
-    "A very warm welcome to {circuit}, and to the {name}.",
-    "Hello and welcome to {circuit} for the {name} -- and what a day for it.",
-    "We are live at {circuit} for the {name}. Lovely to have your company.",
-    "Good afternoon from {circuit}, where the {name} is moments from getting under way.",
-    "Welcome, one and all, to the {name}, here at {circuit}.",
-    "{circuit} is bathed in sunshine and noise -- and welcome to the {name}.",
+    "Welcome to the Political Philosophy Racing League -- live at {circuit} for the {name}.",
+    "You're here with the Political Philosophy Racing League, and a very warm welcome to {circuit} for the {name}.",
+    "The Political Philosophy Racing League is about to go racing at {circuit} -- this is the {name}.",
+    "Hello and welcome to the Political Philosophy Racing League, here at {circuit} for the {name}, and what a day for it.",
+    "This is the Political Philosophy Racing League, live from {circuit} -- moments now from the {name}.",
+    "Good afternoon, and welcome to the Political Philosophy Racing League at {circuit}, where the {name} is about to begin.",
+    "Twenty of history's most dangerous minds, one grid: welcome to the Political Philosophy Racing League, live at {circuit} for the {name}.",
+    "You join the Political Philosophy Racing League at {circuit} -- the {name}, and the grid is forming up.",
 ]
 
 # The pole announcement -- the front row.
@@ -1935,6 +1936,194 @@ WATCH_CHARGER = [
     "{name} starts {start_ord}, which won't suit them at all -- pure racer, allergic to sitting in a queue. Elbows out from the off.",
     "Keep your eye on {name} in {start_ord}. They'll be scything forward inside a handful of laps -- staying put isn't in their nature.",
     "{name} from {start_ord} is my pick for fireworks -- that's a driver who treats every car ahead as a personal insult.",
+]
+
+# THE POLE-SITTER, IN CHARACTER. The front of the grid is the show's centrepiece, so
+# the pole read isn't a stat bucket -- it's a read on WHO this is. Benny says what it
+# MEANS that this particular philosopher is starting first, the politics carried by the
+# fact of the pole. _pole_read() uses this when the pole-sitter has a line, and falls
+# back to the stat-bucket POLE_READ for anyone who doesn't. {name} available but rarely
+# needed (the line already names them).
+POLE_CHARACTER = {
+    "Plato": [
+        "Plato on pole -- of course. He'd tell you the perfect race already exists, complete, in a higher realm; today he simply drives its shadow. Frightening when he's this far up.",
+        "Plato leads them off, and he'll have seen this whole race in his head before the lights. The rest are chasing a copy of a lap he's already perfected.",
+    ],
+    "Diogenes": [
+        "Diogenes on pole? Threw away everything he owned and most of the rulebook, and somehow he's quickest. There's a lesson in that, if you can stand the barrel.",
+        "Pole for the Cynic -- no plan, no theory, no respect for any of it, and first on the grid regardless. He'd find that very funny.",
+    ],
+    "Karl Marx": [
+        "Marx on pole, and he'll tell you it was inevitable -- the right preparation, the long game, history arriving bang on schedule. Annoyingly, from there, he's usually right.",
+        "Marx leads, and don't expect heroics from him -- he believes the race is decided by the deep conditions, not the dramatics. He's just made sure the conditions favour him.",
+    ],
+    "Rosa Luxemburg": [
+        "Luxemburg on pole, and she didn't get there by anyone's master plan -- pure instinct over one lap. Whether she can hold that nerve for a whole race is the question.",
+        "Pole for Luxemburg, who trusts the moment over the plan every time. One brilliant lap proves the point. A full race will test it.",
+    ],
+    "Mikhail Bakunin": [
+        "Bakunin on pole -- all-out attack over one lap, no thought for what comes after. Thrilling. Now we find out if there's a race plan underneath all that fury. Spoiler: there isn't.",
+        "Pole for Bakunin, the man who says the urge to destroy is a creative one. He's just destroyed the qualifying order. The race is another matter.",
+    ],
+    "Emma Goldman": [
+        "Goldman on pole, and you can tell she loved doing it -- if the lap's no joy, it's not worth setting, far as she's concerned. She enjoyed that one.",
+        "Pole for Goldman, who'd dance her way round if they let her. Freedom and a good time, at speed -- that's the whole programme.",
+    ],
+    "Friedrich Nietzsche": [
+        "Nietzsche on pole, which is exactly where he believes he belongs, and several places higher than that. Will to power over one lap -- now he has a whole field to overcome, as well as himself.",
+        "Pole for Nietzsche. He'll have driven that lap as though he'd have to drive it again forever -- and that, terrifyingly, tends to be quick.",
+    ],
+    "Simone de Beauvoir": [
+        "de Beauvoir on pole -- and she'd remind you nobody is BORN on pole. She built that lap, choice by choice, and she'll defend it exactly the same way.",
+        "Pole for de Beauvoir: rigorous, deliberate, nothing left to chance. One is not born quickest, she'd say -- one becomes it. She has.",
+    ],
+    "Niccolò Machiavelli": [
+        "Machiavelli on pole, and don't mistake it for pace -- it was planning. He decided he'd start here on Thursday, and here he is.",
+        "Pole for the great strategist. Cunning, not speed, put him there, and cunning is a lot harder to take off a man over a race.",
+    ],
+    "Theodor Adorno": [
+        "Adorno on pole, looking thoroughly miserable about it. He'll tell you the whole spectacle is a con -- then go and top it anyway. Bleak. Quick, though.",
+        "Pole for Adorno, who thinks the entire show is bread and circuits, and has just won the most important lap of it. The contradiction will keep him up tonight.",
+    ],
+    "Herbert Marcuse": [
+        "Marcuse on pole -- got there by refusing to lift where everyone else did. The Great Refusal, one lap of it. Now he has to keep refusing for a whole afternoon.",
+        "Pole for Marcuse, the man who says no to the corner the rest accept. He said no all the way round, and it was quickest.",
+    ],
+    "Michel Foucault": [
+        "Foucault on pole, having found a lap nobody else could see -- he spends his life taking the line the track tells you not to. Today it put him first.",
+        "Pole for Foucault. The circuit disciplines everyone onto the obvious line; he took the one it was built to keep him off, and beat the lot of them.",
+    ],
+    "Jacques Derrida": [
+        "Derrida on pole, which even he would call an unstable position containing the seeds of its own undoing. Lovely lap, mind. Don't ask him to explain it.",
+        "Pole for Derrida -- he found the gap in everyone's certainty about the quickest line, and drove through it. Whether he can do it twice, nobody knows, least of all him.",
+    ],
+    "Frantz Fanon": [
+        "Fanon on pole -- took it, didn't wait to be given it. That's the man entire, in one lap.",
+        "Pole for Fanon, decisive as ever. You seize your place out here, he'd say; nobody hands it over. He's seized the best one going.",
+    ],
+    "Aimé Césaire": [
+        "Césaire on pole, the composed one -- no fireworks, just a lap written out longhand and quicker than everyone else's shouting.",
+        "Pole for Césaire: measured, dignified, not a wheel out of place. He let the hotheads tear themselves up and quietly went fastest.",
+    ],
+    "Richard Rorty": [
+        "Rorty on pole, and he won't claim it's the 'truly' perfect lap -- just the one that worked. Worked better than everyone's, mind.",
+        "Pole for Rorty, who stopped asking whether his line was correct and simply drove the one that kept paying off. It paid off all the way to first.",
+    ],
+    "Mary Wollstonecraft": [
+        "Wollstonecraft on pole -- out-thought the braking zones rather than out-muscled them. Reason, applied at speed, and quicker than the muscle.",
+        "Pole for Wollstonecraft: clear-headed, principled, no theatrics. She reasoned her way to the front while the others were still arguing.",
+    ],
+    "Thomas Paine": [
+        "Paine on pole, plain and honest -- no tricks, just a quick, clean lap anyone could see coming. Common sense, at two hundred miles an hour.",
+        "Pole for Paine. No cunning to it, no theatre -- plain courage, plainly applied, and it was enough to top the lot.",
+    ],
+    "Ayn Rand": [
+        "Rand on pole? Savour it, folks -- it is the undisputed high point of her weekend, and her weekend ends at roughly lap two.",
+        "Pole for Rand, won entirely alone, with no tow and no help, exactly as she'd insist. Holding it will require other cars to exist, which is where it all falls down for her.",
+    ],
+    "Max Stirner": [
+        "Stirner on pole, owing the achievement to no one and acknowledging the same. He'd call the grid a phantom and the rules a ghost -- right up until a very solid gravel trap on lap two.",
+        "Pole for Stirner, who recognises no authority, including the one that just timed him fastest. Enjoy it while it lasts. It won't.",
+    ],
+}
+
+# THE GRID'S OWN STORYLINES -- the heart of the revamped Countdown. Given the
+# qualifying order, the booth previews a real RIVALRY about to renew itself: who's
+# lining up where, and the grudge or the kinship behind it. Keyed by the pair (order
+# doesn't matter -- the detector works out who's ahead). Placeholders: {ahead} and
+# {behind} (the names, by grid position), {ahead_ord} and {behind_ord} (their spelled
+# grid slots). The HOOK names the thinkers directly, so it reads right whoever's in
+# front. _grid_storylines() scores pairs by how high and how close they start.
+PREVIEW_MATCHUP = {
+    frozenset(("Karl Marx", "Mikhail Bakunin")): [
+        banter([("pbp", "{ahead} starts {ahead_ord}, {behind} right there in {behind_ord} -- and there's history between those two."),
+                ("colour", "History? They split the entire workers' movement in half. Marx had Bakunin thrown out of the International; Bakunin called him a tyrant-in-waiting. A century and a half later, here they are, a grid slot apart. This will not stay civil.")]),
+        banter([("pbp", "Marx and Bakunin, {ahead_ord} and {behind_ord}."),
+                ("colour", "The great schism, lining up to do it all again. One wants the disciplined plan, the other wants to tear the plan up. They could never share a committee -- let's see if they can share a corner.")]),
+    ],
+    frozenset(("Michel Foucault", "Jacques Derrida")): [
+        banter([("pbp", "{ahead} ahead of {behind} on the grid -- {ahead_ord} to {behind_ord}."),
+                ("colour", "These two fell out for years, and over a book, would you believe -- Foucault and Derrida, the great post-structuralist falling-out. Starting this close, that old argument's about to get a rematch at speed.")]),
+    ],
+    frozenset(("Frantz Fanon", "Aimé Césaire")): [
+        banter([("pbp", "{ahead} lines up {ahead_ord}, {behind} {behind_ord} -- teacher and student, these two."),
+                ("colour", "Césaire taught Fanon damn near everything he knows. The one thing he forgot to teach him was to let the old man back through. Watch this one -- there's real love in it, and absolutely no quarter.")]),
+    ],
+    frozenset(("Thomas Paine", "Mary Wollstonecraft")): [
+        banter([("pbp", "{ahead} and {behind}, {ahead_ord} and {behind_ord}."),
+                ("colour", "Rights of Man and Rights of Woman, side by side on the grid. Same revolution, different pamphlet -- and they'll race each other as equals, which is exactly how both of them would insist on it.")]),
+    ],
+    frozenset(("Karl Marx", "Ayn Rand")): [
+        banter([("pbp", "{ahead} ahead of {behind} -- {ahead_ord} and {behind_ord}."),
+                ("colour", "The whole twentieth century in two cars. Marx the collective, Rand the lone individual, and neither would lift to save their life. Mind you, only one of them will still be running by lap three, and it isn't the one who refuses a tow.")]),
+    ],
+    frozenset(("Simone de Beauvoir", "Mary Wollstonecraft")): [
+        banter([("pbp", "{ahead} starts {ahead_ord}, {behind} {behind_ord}."),
+                ("colour", "Two centuries apart, the very same fight -- the rights and the freedom of women, argued first by Wollstonecraft and taken up by de Beauvoir. Starting together today. The younger argument has the legs, but don't count out the original.")]),
+    ],
+    frozenset(("Friedrich Nietzsche", "Plato")): [
+        banter([("pbp", "{ahead} and {behind} -- {ahead_ord} to {behind_ord} on the grid."),
+                ("colour", "Nietzsche spent his whole career calling Plato's perfect world a fairy story. Now they line up in the real one, a few feet apart. He'd love nothing more than to bin the old idealist at the first corner.")]),
+    ],
+    frozenset(("Plato", "Diogenes")): [
+        banter([("pbp", "{ahead} and {behind}, {ahead_ord} and {behind_ord}."),
+                ("colour", "Oh, these two. Diogenes once plucked a chicken, held it up and shouted 'behold, Plato's man' -- just to make the great philosopher look a fool. That contempt has lasted two thousand years, and it's lining up on a grid today.")]),
+    ],
+    frozenset(("Theodor Adorno", "Herbert Marcuse")): [
+        banter([("pbp", "{ahead} ahead of {behind} -- {ahead_ord} and {behind_ord}."),
+                ("colour", "The Frankfurt split, right there. When the students rose up, Marcuse went to the barricades and Adorno rang the police. One takes the corner, the other analyses it. Starting this close, we'll see which wins.")]),
+    ],
+    frozenset(("Niccolò Machiavelli", "Plato")): [
+        banter([("pbp", "{ahead} and {behind} on the grid, {ahead_ord} to {behind_ord}."),
+                ("colour", "The realist and the dreamer. Plato wants the ideal city; Machiavelli wants to know how power actually works on a wet Tuesday. The Prince never did have time for the Republic -- and he'll have even less for it into Turn 1.")]),
+    ],
+    frozenset(("Rosa Luxemburg", "Karl Marx")): [
+        banter([("pbp", "Teammates {ahead} and {behind}, {ahead_ord} and {behind_ord} -- and not exactly in lockstep."),
+                ("colour", "Same team, same cause, endless argument. Marx trusts the long-laid plan; Luxemburg trusts the moment and won't wait to be told. She'd seize a gap he'd let develop for ten laps. No team orders are going to settle THAT.")]),
+    ],
+    frozenset(("Emma Goldman", "Mikhail Bakunin")): [
+        banter([("pbp", "{ahead} and {behind}, teammates, {ahead_ord} and {behind_ord}."),
+                ("colour", "Two anarchists on the same team, which means absolutely no orders and no holding station -- they'd both be insulted to be asked. No gods, no masters, and apparently no exceptions for each other. Flat out, the pair of them.")]),
+    ],
+    frozenset(("Simone de Beauvoir", "Friedrich Nietzsche")): [
+        banter([("pbp", "{ahead} ahead of teammate {behind} -- {ahead_ord} to {behind_ord}."),
+                ("colour", "There's a lineage here. de Beauvoir took Nietzsche's idea that you make yourself out of nothing handed down. But she never forgot the grid you start from, the car you're given -- the bit he sails straight past. Same garage, opposite blind spots.")]),
+    ],
+    frozenset(("Jacques Derrida", "Plato")): [
+        banter([("pbp", "{ahead} and {behind}, {ahead_ord} and {behind_ord}."),
+                ("colour", "Derrida built a whole career taking Plato's certainties apart, line by line. Now there's a literal line between them on the grid. If anyone can find the crack in the old man's perfect lap and slip through it, it's him.")]),
+    ],
+    frozenset(("Niccolò Machiavelli", "Richard Rorty")): [
+        banter([("pbp", "Teammates {ahead} and {behind} -- {ahead_ord} and {behind_ord}."),
+                ("colour", "Two men who long ago stopped asking what the 'true' racing line is and started asking only what works. The realist and the pragmatist, same garage. No grand theory between them -- just whoever's plan pays off first.")]),
+    ],
+}
+
+# THE WEATHER OUTLOOK -- a forecast beat, driven by the track's rain_chance. Real
+# booths flag the sky when it matters and skip it when it doesn't; so does this.
+PREVIEW_WEATHER = {
+    "likely": [
+        "And keep half an eye on that sky -- rain's a real threat here, and if it comes, everything you think you know about this race goes out the window.",
+        "The clouds are doing the talking today. A shower is very much on the cards, and wet weather is the great leveller -- the clever ones will be watching the radar, not the timing screen.",
+        "It could rain, and at this place it often does. If it turns, the strategists and the brave both get their moment -- and the order we've got could mean nothing at all.",
+    ],
+    "possible": [
+        "There's a chance of a shower later -- not a certainty, but enough that the smart money keeps the wets within reach.",
+        "Eye on the weather: it might just spit later on. Probably nothing. But 'probably' has cost people a race before now.",
+    ],
+    "dry": [
+        "Sky's clear, track's dry, no excuses from the heavens today -- this one will be settled on pure racing.",
+        "No help from the weather today -- it's dry and it'll stay dry, so whatever happens out there, they've only themselves to blame.",
+    ],
+}
+
+# A KEY-CORNER callout -- name the place the race tends to be decided, drawn from the
+# circuit's own overtaking corners. {corner} is supplied by _seg_scene().
+PREVIEW_CORNER = [
+    "Keep your eyes on {corner} -- that's where this one gets won and lost, every year.",
+    "If a move's going to stick today, it'll be at {corner}. Watch that braking zone.",
+    "{corner} is the place to watch -- get it right and the race opens up; get it wrong and you're a passenger.",
+    "All the big moments here happen at {corner}. That's where the brave make their afternoon.",
 ]
 
 
