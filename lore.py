@@ -576,28 +576,28 @@ INVESTIGATION_CALLS = {
 }
 PENALTY_CALLS = {
     "time": [
-        "And the verdict: a {secs}-second penalty for {driver}.",
-        "{driver} gets {secs} seconds -- {offence}, say the stewards.",
-        "The stewards have decided: a {secs}-second time penalty for {driver}.",
-        "Penalty for {driver} -- {secs} seconds, for {offence}.",
-        "There it is -- {secs} seconds for {driver}. The stewards have made up their minds.",
+        "And the verdict: a {secs}-second penalty for {driver}, for {offence_phrase}.",
+        "{driver} gets {secs} seconds -- {offence_phrase}, say the stewards.",
+        "The stewards have decided: {secs} seconds for {driver}, for {offence_phrase}.",
+        "Penalty for {driver} -- {secs} seconds, for {offence_phrase}.",
+        "There it is -- {secs} seconds for {driver}, the stewards pinning it on {offence_phrase}.",
     ],
     "drive-through": [
-        "Worse for {driver} -- it's a drive-through.",
-        "The stewards throw the book at {driver}: a drive-through penalty.",
-        "{driver} handed a drive-through -- and that genuinely hurts.",
+        "Worse for {driver} -- a drive-through, for {offence_phrase}.",
+        "The stewards throw the book at {driver}: a drive-through, for {offence_phrase}.",
+        "{driver} handed a drive-through for {offence_phrase} -- and that genuinely hurts.",
     ],
     "stop-go": [
-        "A ten-second stop-go for {driver} -- about as bad as it gets short of the black flag.",
-        "Stop-go for {driver}. Sit in the box for ten and think it over.",
+        "A ten-second stop-go for {driver}, for {offence_phrase} -- about as bad as it gets short of the black flag.",
+        "Stop-go for {driver}, for {offence_phrase}. Sit in the box for ten and think it over.",
     ],
     "dsq": [
-        "And {driver} is OUT -- disqualified by the stewards. Extraordinary scenes.",
-        "The black flag for {driver} -- disqualified. Their afternoon ends in the stewards' room.",
+        "And {driver} is OUT -- disqualified for {offence_phrase}. Extraordinary scenes.",
+        "The black flag for {driver} -- disqualified for {offence_phrase}. Their afternoon ends in the stewards' room.",
     ],
     "warning": [
-        "Black-and-white flag for {driver} -- a warning on track limits. One more and it's a penalty.",
-        "{driver} shown the black-and-white -- final warning for running wide.",
+        "Black-and-white flag for {driver} -- a warning for {offence_phrase}. One more and it's a penalty.",
+        "{driver} shown the black-and-white -- final warning for {offence_phrase}.",
     ],
 }
 PENALTY_SERVED_CALLS = [

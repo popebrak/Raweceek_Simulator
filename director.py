@@ -361,7 +361,14 @@ class Director:
         cands = []
         for inc in report.incidents:
             framed = False
-            if inc.cause == "collision" and inc.other_name:
+            # A tracked fight only ENDS in contact when the contact actually removes a
+            # car. A glancing touch where both drive on (a "both_go" collision) is NOT
+            # the end of the battle -- framing it as "boiled over / OVER" would lie, and
+            # closing the arc would stop us tracking a fight that's still very much live
+            # (and rob us of a later reignite). So we frame, and resolve, only on a
+            # terminal contact; everything else stays a normal collision call.
+            out = inc.retirement or inc.other_retired
+            if inc.cause == "collision" and inc.other_name and out:
                 arc = self._live_arc(frozenset((inc.driver_name, inc.other_name)), report.lap)
                 if arc is not None:
                     arc.resolved = "contact"
@@ -386,11 +393,12 @@ class Director:
             if colour:
                 turns.extend(colour.turns)
 
-            out = inc.retirement or inc.other_retired
             if out:
+                # A retirement is the top tier -- and a battle that ENDS in a
+                # car-removing contact (framed) is always a retirement, so it lands
+                # here too, above a plain collision. (framed still drives the
+                # "battle is over" lead-in above; it no longer needs its own tier.)
                 sal, mand, inten = SAL_RETIREMENT, True, 3
-            elif framed:
-                sal, mand, inten = SAL_BATTLE_CONTACT, True, 3
             elif inc.cause == "collision":
                 sal, mand, inten = SAL_COLLISION, True, 2
             elif inc.severity == "major":

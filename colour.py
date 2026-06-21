@@ -481,11 +481,20 @@ class Booth:
 
     def call_penalty(self, pen):
         """Phill reads out a verdict. Seconds are spelled for a time penalty; every
-        placeholder is supplied so any template in any bucket formats cleanly."""
+        placeholder is supplied so any template in any bucket formats cleanly. The
+        verdict ALWAYS names what it's for -- it can land several laps after the
+        investigation, so the offence has to travel with it or the listener is lost.
+        For contact we name the wronged driver; otherwise the offence speaks for
+        itself ('pit-lane speeding', 'track limits', and so on)."""
         pool = PENALTY_CALLS.get(pen.kind, PENALTY_CALLS["time"])
         secs = _spell(int(pen.seconds)) if pen.kind == "time" else ""
+        if pen.offence == "avoidable contact" and pen.other_name:
+            offence_phrase = f"the contact with {pen.other_name}"
+        else:
+            offence_phrase = pen.offence or "the incident"
         return self._fresh(f"_pen_{pen.kind}", pool).format(
-            driver=pen.driver_name, secs=secs, offence=pen.offence, other=pen.other_name)
+            driver=pen.driver_name, secs=secs, offence=pen.offence,
+            offence_phrase=offence_phrase, other=pen.other_name)
 
     def call_penalty_served(self, pen):
         """Phill's call as a driver takes a drive-through or stop-go down the lane."""
