@@ -26,6 +26,7 @@ import random
 
 from drivers import GRID
 from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
+                  CHATTER_RESUME_NAMED, CHATTER_RESUME_GENERIC,
                   GENERIC_INCIDENT, GENERIC_OVERTAKE, GENERIC_PIT,
                   Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK,
                   # the duo texture -- Benny's register, Phill's reclaim & set-piece
@@ -192,6 +193,16 @@ BATTLE_WINDOW = 3
 # the green-flag spell and gets interrupted by the racing, like a real booth.
 CHATTER_TURNS_PER_LAP = 2
 
+# When the racing PARKS a discussion mid-thread, how the booth picks it back up
+# depends on how long it's been parked. A one-lap gap is a seamless continuation
+# (no signpost). A gap of at least RESUME_MIN laps means real action came between,
+# so the booth re-establishes the subject first ("Back to Derrida and Rorty --").
+# A gap longer than RESUME_MAX means the thread is stale -- a retirement, a battle
+# and a rundown have all gone by -- so it's dropped and a fresh topic is started
+# rather than resurrecting a half-finished thought nobody remembers.
+CHATTER_RESUME_MIN = 2
+CHATTER_RESUME_MAX = 6
+
 # The closing laps get their OWN register: the booth builds tension toward the flag
 # whether or not anything is happening, so the run-in never goes quiet. These lines
 # are GENERATED from race state (laps left, the gap), so unlike the authored lull
@@ -345,6 +356,7 @@ class Booth:
         self._last_weather = {}                     # change -> (last pbp idx, last colour idx)
         self._ambient_used = {}                     # bucket -> set of pair indices already aired
         self._thread = []                           # remaining turns of the active discussion
+        self._thread_lap = 0                         # lap the active thread last played a beat (park/resume gap)
         self._used_threads = set()                  # threads already run this race
         self._last_about = frozenset()              # subjects of the last thread (avoid back-to-back)
         self._battles = {}                          # frozenset(pair) -> {lap, swaps}: collapse trading places
@@ -584,7 +596,21 @@ class Booth:
         actually racing. Returns a list of (role, line) for this lap -- empty only
         if every thread is spent. Because a thread unfolds over several laps and is
         paused (not dropped) when the racing interrupts, it reads as a real
-        conversation rather than a one-liner fired and forgotten."""
+        conversation rather than a one-liner fired and forgotten.
+
+        The catch a real booth handles and a naive one doesn't: when the racing
+        parks a thread and we pick it back up laps later, the next authored turn
+        ("And out here?") assumes a context the listener has lost. So a resumption
+        after a real gap is SIGNPOSTED -- Phill re-names the subject first -- and a
+        thread parked too long to be worth resuming is dropped for a fresh one."""
+        resumed = False
+        if self._thread:
+            gap = lap - self._thread_lap
+            if gap > CHATTER_RESUME_MAX:
+                self._thread = []          # parked too long -- stale, start fresh
+            elif gap >= CHATTER_RESUME_MIN:
+                resumed = True             # interrupted, but recent enough to pick up -- signpost it
+
         if not self._thread:
             thread = self._choose_thread(standings)
             if thread is None:
@@ -592,9 +618,49 @@ class Booth:
             self._used_threads.add(thread)
             self._last_about = frozenset(thread.about)
             self._thread = list(thread.turns)
+            resumed = False                # a brand-new topic opens itself; no callback needed
+
         beat = self._thread[:CHATTER_TURNS_PER_LAP]
         self._thread = self._thread[CHATTER_TURNS_PER_LAP:]
+        self._thread_lap = lap
+
+        if resumed:
+            # Phill re-establishes the subject, THEN the parked beat continues -- so
+            # the mid-thread prompt that follows now lands in context again.
+            beat = [("pbp", self._resume_opener())] + list(beat)
         return beat
+
+    def _resume_opener(self):
+        """A short Phill line re-naming what the booth was discussing before the
+        racing cut in, drawn fresh so a busy race doesn't repeat the same re-entry."""
+        names = self._spoken_names(self._last_about)
+        pool = CHATTER_RESUME_NAMED if names else CHATTER_RESUME_GENERIC
+        return self._fresh("_chatter_resume", pool).format(names=names)
+
+    @staticmethod
+    def _short(name):
+        """A driver's callback name -- the surname a caller would actually say,
+        keeping a lowercase particle ('de Beauvoir') and leaving single-name
+        thinkers (Plato, Diogenes) whole."""
+        parts = name.split()
+        if len(parts) == 1:
+            return name
+        i = len(parts) - 1
+        while i > 0 and parts[i - 1][:1].islower():
+            i -= 1                          # absorb a particle: '... de Beauvoir'
+        return " ".join(parts[i:])
+
+    def _spoken_names(self, about):
+        """The thread's subjects as a spoken list of surnames -- '' for a general
+        thread, 'Derrida' for one, 'Derrida and Rorty' for two, an Oxford list above."""
+        names = [self._short(n) for n in sorted(about)]
+        if not names:
+            return ""
+        if len(names) == 1:
+            return names[0]
+        if len(names) == 2:
+            return f"{names[0]} and {names[1]}"
+        return ", ".join(names[:-1]) + f", and {names[-1]}"
 
     def _choose_thread(self, standings):
         """Pick the next discussion. Prefer threads about a current battle (two cars

@@ -752,6 +752,30 @@ def discussion(turns, about=(), track="", topic=""):
     return Thread(tuple((r, l) for r, l in turns), tuple(about), track, topic)
 
 
+# When a quiet-lap discussion is PARKED by the racing (a pass, a crash, a rundown)
+# and the booth picks it back up several laps later, it re-establishes the subject
+# FIRST -- otherwise the resumed beat ("And out here?", "So a Grand Prix is--")
+# assumes a context the listener lost laps ago and reads as a non-sequitur. Phill
+# says one of these as a re-entry, then the thread continues. {names} is the
+# thread's subjects, as surnames a caller would actually say ("Derrida and Rorty").
+CHATTER_RESUME_NAMED = [
+    "Back to {names}, then -- where the racing cut us off.",
+    "Now there's a breather: we were on about {names} a few laps back.",
+    "Returning to {names} for a moment, before all that interrupted us.",
+    "Where were we... {names}, that was it.",
+    "So, picking {names} back up, where we left it.",
+    "And we never finished on {names}, did we -- let's put that right.",
+    "Right -- {names}, before the race so rudely intervened.",
+]
+# The same re-entry, for a general thread with no named driver to anchor it.
+CHATTER_RESUME_GENERIC = [
+    "Now, where were we -- before the racing got in the way.",
+    "Right, picking up where we left off a few laps back.",
+    "Let me finish that thought, now there's a breather.",
+    "Back to what we were chewing over earlier.",
+]
+
+
 DISCUSSIONS = [
 
     # --- single thinkers: what actually drives them ------------------------
