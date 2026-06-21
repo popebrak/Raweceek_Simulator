@@ -354,6 +354,58 @@ RUNIN_SETPIECE = [
      "-- and the crowd are on their feet for the run to the line!"],
 ]
 
+# MID-RACE SET-PIECES. The same device as the run-in build above -- Phill holds the
+# floor for an escalating, uninterrupted call -- but for the two stop-everything
+# moments that can land in the middle of a race: a pass for the LEAD, and a
+# front-runner going OUT. The director keeps these rare (a hard per-race cap and a
+# chance gate), so they stay special. Like the run-in set-piece these are PURE racing
+# drama: the philosophy rides in on Benny's reaction afterwards, never in Phill's
+# build. Each entry is one escalating build (a list of pbp lines); the payoff lands
+# on a "!", which the render's micro-pacing gives a beat of air.
+
+# A pass for the lead. {driver} = the new leader, {other} = the deposed leader,
+# {at} = " at the Parabolica" (or empty). Don't repeat {driver}/{other} awkwardly.
+LEAD_SETPIECE = [
+    ["And here comes the move we have been waiting for{at} --",
+     "{driver} has been right on the back of {other} for laps now, looking, probing --",
+     "-- goes down the inside, {other} fighting to hold the door shut --",
+     "-- and {driver} is THROUGH! A new leader of the Grand Prix!"],
+    ["{driver} has a run on {other}{at} -- and this time there is no backing out of it!",
+     "Side by side down the straight, neither one of them lifting, wheel to wheel --",
+     "-- {driver} hangs it around the outside, it should not be possible --",
+     "-- and it STICKS! {other} is beaten, and we have a new leader!"],
+    ["Watch this{at} -- {driver} is closing on {other} like a train!",
+     "Into the braking zone they go, {driver} throwing it up the inside --",
+     "-- {other} tries to cover, but it is far too late, the move is done --",
+     "-- {driver} leads the Grand Prix!"],
+    ["{other} has led every single lap of this race so far -- but not for much longer{at}!",
+     "{driver} lines them up out of the corner, gets the better exit, draws alongside --",
+     "-- and edges ahead at the line! A change of leader, just like that!"],
+    ["This one has been building for laps, and now it is happening{at} --",
+     "{driver} feints one way, goes the other, catches {other} completely off guard --",
+     "-- and sweeps into a lead nobody quite saw coming! A new man at the front!"],
+]
+
+# A front-runner's retirement. {driver} = the car that's out, {at} = the corner (or
+# empty). The trigger is a top-five runner, so "one of the leaders" always reads true.
+RETIRE_SETPIECE = [
+    ["Hang on -- there is something wrong here{at} --",
+     "{driver} is slowing, smoke pouring from the back of the car, a hand going up --",
+     "-- and that is the end of it! One of the front-runners is OUT!"],
+    ["Drama at the sharp end of this race{at}! {driver} has pulled off to the side!",
+     "A car that was right in the thick of the fight, abandoned at the side of the road --",
+     "-- and just like that, the whole shape of this Grand Prix has changed!"],
+    ["No, no, no -- {driver} is in serious trouble{at}!",
+     "The back of the car just snapped away, and there was nothing to be done about it --",
+     "-- a cruel end to a brilliant afternoon, and {driver} is out of the race!"],
+    ["We have lost one of the leaders{at} --",
+     "{driver} coasting now, all the power gone, freewheeling to a silent stop --",
+     "-- heartbreak, after running so strongly all day. Out, just like that!"],
+    ["And there it is, the moment that turns this whole race on its head{at} --",
+     "{driver} parks it out on circuit, climbing from the cockpit, the race run --",
+     "-- one of the very quickest out there today, and they will not see the flag!"],
+]
+
 # Getaways off the line, by how big the launch was.
 START_CALLS = {
     "lead": ["{driver} BEATS them all off the line -- leads into Turn 1!",

@@ -31,6 +31,7 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   Bit, banter, PODIUM_QUOTES, PODIUM_QUOTE_FALLBACK,
                   # the duo texture -- Benny's register, Phill's reclaim & set-piece
                   BENNY_VERDICT, PHILL_RECLAIM, RUNIN_SETPIECE,
+                  LEAD_SETPIECE, RETIRE_SETPIECE,
                   # the calls -- Phill's factual lines, now owned by the booth
                   START_CALLS, OVERTAKE_CALLS, BATTLE_CALLS, BATTLE_REIGNITE,
                   BATTLE_CONTACT, BATTLE_UNDERCUT, SOLO_RETIRE,
@@ -777,6 +778,24 @@ class Booth:
         i = random.choice(pool)
         self._last_runin[(bucket, role)] = i
         return options[i]
+
+    # --- mid-race set-pieces: Phill's extended call on a stop-everything moment ----
+    def call_lead_setpiece(self, ov):
+        """Phill's escalating build for a pass for the LEAD -- the marquee on-track
+        moment, given room to run instead of a single line. Returns the list of pbp
+        lines only; the director appends Benny's reaction (for_overtake) after, so the
+        teaching payoff lands on the back of the drama. The director decides WHEN this
+        fires (rare, capped); the booth just provides the words."""
+        build = self._fresh("_lead_setpiece", LEAD_SETPIECE)
+        at = _at(ov.location) if ov.location != "the start" else ""
+        return [line.format(driver=ov.passer, other=ov.passed, at=at) for line in build]
+
+    def call_retire_setpiece(self, inc):
+        """Phill's escalating build for a FRONT-RUNNER's retirement -- a car that was
+        in the fight, suddenly gone. Returns the list of pbp lines only; the director
+        appends Benny's reaction (for_incident) after."""
+        build = self._fresh("_retire_setpiece", RETIRE_SETPIECE)
+        return [line.format(driver=inc.driver_name, at=_at(inc.location)) for line in build]
 
     def for_finish(self, standings):
         """The flag. The winner's moment, always called -- a race never ends on
