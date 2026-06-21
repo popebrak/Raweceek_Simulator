@@ -78,54 +78,122 @@ def banter(turns, when="any", weight=1):
 
 # The `when` tags: "overtake", "incident", "retirement", "start", "any".
 DRIVER_LORE = {
+    # The teaching layer: each line carries the thinker's politics through the
+    # racing -- the move first, the idea riding on top. Tags that actually fire
+    # (see colour.for_overtake/for_incident/for_pit): "start", "overtake",
+    # "incident", "retirement", "pit". A flat colour line gets the duo texture
+    # (a Benny opener, sometimes a Phill reclaim); banters pass through as written.
     "Plato": [
-        quip("Even the architect of the perfect society can't legislate away a kerb.", when="incident"),
         quip("Plato away cleanly -- the philosopher-king takes the place that's his by right, he'd say.", when="start"),
+        quip("Plato through, and precisely where he meant to be -- the perfect line isn't out here on the tarmac, he reckons, it's the one he's already driven in his head. He's only matching the picture.", when="overtake"),
+        quip("Even the architect of the perfect society can't legislate away a kerb.", when="incident"),
+        quip("Off chasing the ideal line -- and the bother with ideal lines, like ideal cities, is they live up in the head and not down here in the gravel.", when="incident"),
+        quip("A stop timed to the second -- Plato wants the whole race run like his Republic, every part in its ordained place, the pit wall included.", when="pit"),
     ],
     "Diogenes": [
         quip("Diogenes away like a man with nothing to lose -- which, owning a barrel, he hasn't.", when="start"),
+        quip("Diogenes barges through on pure instinct -- no tow, no plan, no thank-you. All the clever strategy's just borrowed nonsense, he reckons; strip it off and you've a man and a corner, and he prefers it that way.", when="overtake"),
         quip("No plan, no shame, no brakes. Living the dream, right up until the gravel.", when="incident"),
         quip("There it goes. The Cynic never did believe in the rules, including the ones holding the car on the road.", when="incident"),
     ],
     "Karl Marx": [
+        quip("Marx away patiently -- he's not interested in the launch, he's interested in lap forty. The whole race is a process, and he's already read how it ends.", when="start"),
+        quip("Marx grinds past at last -- no lunge, no luck, just the long game arriving bang on schedule. The order corrects itself, he'd say, given enough laps.", when="overtake"),
+        quip("Even the man who mapped the whole arc of history can lose the back end at the Roggia. The material conditions, just then, included a damp kerb.", when="incident"),
         quip("A calculated stop -- the man does nothing without a theory of why.", when="pit"),
     ],
     "Rosa Luxemburg": [
         quip("Luxemburg sends it -- didn't wait for the order, never does.", when="start"),
+        quip("Luxemburg pounces -- no call from the pit wall, no committee, just the gap and the nerve to take it. She always did trust the moment over the master plan.", when="overtake"),
+        quip("Caught out chasing a half-gap there -- she races on instinct, and instinct, now and again, drives you into the scenery. She'd still take it over waiting to be told.", when="incident"),
     ],
     "Mikhail Bakunin": [
         quip("Bakunin attacks Turn 1 like it owes him money. The urge to destroy, he calls it.", when="start"),
+        quip("Bakunin barges through -- no master, no plan, no permission asked. He'd tear up the pit wall's strategy if they ever dared send him one.", when="overtake"),
         quip("Urge to destroy's a creative one, he says. Very creative with the barrier just then.", when="incident"),
         quip("Down it goes. He always did prefer tearing things down to keeping them up.", when="incident"),
     ],
     "Emma Goldman": [
         quip("Goldman dances off the line -- if she can't enjoy the start, it's not her revolution.", when="start"),
+        quip("Goldman dances past, and loving every yard of it -- a revolution you can't enjoy isn't worth having, she'd say. Same, it turns out, goes for an overtake.", when="overtake"),
+        quip("Off she goes, having far too much fun -- but she'd sooner bin it chasing the joy than tiptoe round for points. That's the whole creed, right there in the gravel.", when="incident"),
+        quip("In she comes -- under protest, you suspect. Goldman trusts an order about as far as she could throw the pit wall that gave it.", when="pit"),
     ],
     "Friedrich Nietzsche": [
         quip("Nietzsche living dangerously into Turn 1, as advertised.", when="start"),
+        quip("Nietzsche forces his way through -- forward's the only direction he'll recognise. Will to power, and just now it's the will to a better corner exit.", when="overtake"),
         quip("Will to power, that. The will to understeer, more like.", when="incident"),
         quip("He gazed into the abyss once too often -- and this time it gazed back.", when="incident"),
+        quip("Nietzsche boxes, and you can hear him hating it -- sat still, trusting the herd in the pit lane. Everything in the man wants to be back out there overcoming something.", when="pit"),
+    ],
+    "Simone de Beauvoir": [
+        quip("de Beauvoir away, and nothing about it left to chance -- she chooses this start the way she chooses everything, deliberately, and lives with it.", when="start"),
+        quip("de Beauvoir makes the place -- doesn't wait to be granted it. One is not born in front, she'd say; one gets there by choosing well, corner after corner.", when="overtake"),
+        quip("Even the most rigorous plan has to meet the situation -- and the situation, just there, was a kerb she didn't choose. She'll account for it precisely afterwards.", when="incident"),
+        quip("A stop worked out to the letter -- de Beauvoir leaves nothing to fortune that she can settle by thinking it through first.", when="pit"),
     ],
     "Niccolò Machiavelli": [
+        quip("Machiavelli holds his line off the start -- no heroics. He decided where this race was won on Thursday, and it wasn't at Turn 1.", when="start"),
+        quip("Machiavelli through, and never laid a wheel in anger -- let the others wear themselves out fighting; he simply arrived, unhurried, and took the place. Cunning beats force.", when="overtake"),
         quip("Machiavelli boxes -- exactly when it suits him and nobody else. The ends justify the in-lap.", when="pit"),
     ],
+    "Richard Rorty": [
+        quip("Rorty away tidily -- no grand theory of the perfect start, just whatever gets the job done off this particular line on this particular day.", when="start"),
+        quip("Rorty finds a way by -- he never stopped to wonder whether his line was 'truly' the quickest, he just kept driving the one that was working. And it kept working.", when="overtake"),
+        quip("Caught out there -- and there's no deeper truth to fall back on, in his book, just the next corner to get right. He'll shrug and get on with it.", when="incident"),
+        quip("A sensible, unfussy stop -- Rorty asks one question of a strategy and one only: does it put me up the road? This one did.", when="pit"),
+    ],
     "Theodor Adorno": [
+        quip("Adorno picks one off -- joylessly, efficiently, with the air of a man who always suspected the whole spectacle was rotten. He's winning, and he hates that he's enjoying it.", when="overtake"),
         quip("Adorno climbs out looking thoroughly vindicated. Happiest when it all goes wrong.", when="incident"),
+        quip("A clean, grim, optimal stop -- Adorno does the right thing and takes no pleasure in it. The pit lane's just the culture industry with tyre guns, far as he's concerned.", when="pit"),
     ],
     "Herbert Marcuse": [
         quip("Marcuse off on the attack -- the Great Refusal, except he never refuses a lunge.", when="start"),
+        quip("Marcuse stays in it where everyone else lifted -- that's the Great Refusal made flesh. The corner says back out; he simply declines.", when="overtake"),
+        quip("Refused to lift, refused to yield, refused the corner itself -- and the corner, this once, refused him right back. He won't mind. Refusing was the whole point.", when="incident"),
+    ],
+    "Michel Foucault": [
+        quip("Foucault away well -- he reads a start the way he reads everything, watching where the others are pushed and slipping through where they aren't.", when="start"),
+        quip("Foucault through on the line nobody else would touch -- the track herds you onto the obvious one, and he spends every lap taking the one it would rather he didn't.", when="overtake"),
+        quip("Caught out probing for the line that isn't sanctioned -- he's forever testing where the real limits are. Found one of them, just then.", when="incident"),
+        quip("Foucault boxes off the back of a read nobody else made -- he sees the whole board, every car, every window, and moves before the picture's even formed for the rest of them.", when="pit"),
     ],
     "Jacques Derrida": [
+        quip("Derrida away, erratically as ever -- there's no one right line, he insists, so he'll try several, often in the same corner.", when="start"),
+        quip("Derrida unpicks the man ahead -- finds the gap where the certainty about the racing line used to be, and is through it before anyone clocks it was ever there.", when="overtake"),
         quip("Derrida'd say the crash was always already happening. The marshals would say it's happening now.", when="incident"),
     ],
     "Frantz Fanon": [
         quip("Fanon away decisively -- never did wait politely for an opening.", when="start"),
+        quip("Fanon takes it -- doesn't ask, doesn't wait to be granted the place. You seize your freedom out here; nobody hands it to you. That's his whole life in one move.", when="overtake"),
+        quip("Fanon goes for one that wasn't quite on -- but he'd sooner overreach taking a place than sit meekly behind waiting for one to be offered. It never is.", when="incident"),
+    ],
+    "Aimé Césaire": [
+        quip("Césaire away composed -- the measured one, the teacher. No fireworks off the line, just a man who knows exactly where this afternoon is going.", when="start"),
+        quip("Césaire through, unhurried and clean -- he let the hotheads tear past and tear themselves up, wrote his own lap out longhand, and it proved the quicker for it.", when="overtake"),
+        quip("Even the cool head gets it wrong sometimes -- a rare untidy moment from Césaire, and he'll be furious with himself in the most dignified possible way.", when="incident"),
+        quip("A tidy, considered stop -- Césaire does nothing in a hurry and nothing twice. The plan was settled long before the board went out.", when="pit"),
+    ],
+    "Thomas Paine": [
+        quip("Paine away straight and true -- no cunning, no theatre, just plain common sense pointed at Turn 1.", when="start"),
+        quip("Paine forces it through -- no tricks to it, just plain courage plainly applied. Tends to be enough, he'd tell you, and just now it was.", when="overtake"),
+        quip("Even common sense meets a gravel trap it can't argue with -- Paine overcooked that one, and there's no pamphlet that talks you out of a slide.", when="incident"),
+        quip("A plain, honest stop -- no gamesmanship from Paine, just the sensible call made out in the open for anyone to see.", when="pit"),
+    ],
+    "Mary Wollstonecraft": [
+        quip("Wollstonecraft away cleanly -- claims the place reason says is hers, and she's spent a lifetime arguing it was always hers to claim.", when="start"),
+        quip("Wollstonecraft picks him off -- didn't out-muscle anyone, out-reasoned them; thought the braking zone through more clearly than the man ahead, and that was the whole pass.", when="overtake"),
+        quip("Caught out there -- a rare lapse from one of the clearest heads on the grid. She'll have it diagnosed before she's back to the garage.", when="incident"),
+        quip("A clear-eyed, principled stop -- Wollstonecraft reasons the plan out and commits to it. No sentiment in it, and she'd take that as the compliment it is.", when="pit"),
     ],
     "Ayn Rand": [
+        quip("Rand away on her own terms -- won't draft, won't tuck in, won't take a tow off a soul. It looks heroic for about two corners.", when="start"),
         quip("Rand won't yield, won't draft, won't give an inch -- nearly gave the whole lot away there.", when="incident"),
         quip("And she's out. Wouldn't be told when to stop by the pit wall, so the wall told her instead.", when="retirement"),
     ],
     "Max Stirner": [
+        quip("Stirner away, owing allegiance to nothing and no one -- least of all the racing line, which he regards as a polite fiction.", when="start"),
         quip("Stirner bows to nothing. The laws of physics didn't get the memo.", when="incident"),
         quip("Stirner's gone. The pit plan was just another spook to him -- but a gravel trap's no ghost, mate.", when="retirement"),
     ],
@@ -621,6 +689,47 @@ PAIR_LORE = {
     ],
     ("Niccolò Machiavelli", "Plato"): [
         quip("Machiavelli past Plato -- the realist past the dreamer. The Prince never did have time for the Republic.", when="overtake"),
+    ],
+    # Teammates who agree on the cause and nothing else -- the family argument, at speed.
+    ("Rosa Luxemburg", "Karl Marx"): [
+        banter([("colour", "Luxemburg past her own man Marx! She spent her life telling his followers the plan would arrive on its own if they'd only wait -- and that waiting was the one thing she'd never do."),
+                ("pbp", "And she didn't wait there."),
+                ("colour", "Took the gap the moment it opened. He'd have let it develop for another ten laps. That's the whole quarrel in one corner.")], when="overtake"),
+    ],
+    ("Karl Marx", "Rosa Luxemburg"): [
+        quip("Marx reels his own teammate back in -- the long game past the quick one. Patience, he'd tell Luxemburg, history rewards the side that can wait. She's never believed a word of it.", when="overtake"),
+    ],
+    ("Emma Goldman", "Mikhail Bakunin"): [
+        banter([("colour", "Goldman past Bakunin -- no masters on this team, and that includes each other."),
+                ("pbp", "No holding station, then."),
+                ("colour", "She'd be insulted to be asked, and he'd be insulted to ask. Two anarchists racing flat out is the only honest arrangement they've got.")], when="overtake"),
+    ],
+    ("Mikhail Bakunin", "Emma Goldman"): [
+        quip("Bakunin barges past his own teammate -- no gods, no masters, no team orders, and apparently no exceptions for Goldman either. She'd have it no other way.", when="overtake"),
+    ],
+    ("Simone de Beauvoir", "Friedrich Nietzsche"): [
+        banter([("colour", "de Beauvoir past Nietzsche -- and there's a lineage there. She took his idea that you make yourself out of nothing handed down."),
+                ("pbp", "But?"),
+                ("colour", "But she never forgot the car, the grid, the situation you start from -- the bit he sailed straight past. Accounted for all of it, and beat him to the corner.")], when="overtake"),
+    ],
+    ("Friedrich Nietzsche", "Simone de Beauvoir"): [
+        quip("Nietzsche storms past de Beauvoir -- pure will, no account taken of where anyone started or what they were carrying. It's reckless, it's magnificent, and it's exactly the blind spot she spent a career naming.", when="overtake"),
+    ],
+    ("Niccolò Machiavelli", "Richard Rorty"): [
+        quip("Machiavelli past his teammate Rorty -- two men who long ago stopped asking what the 'true' racing line is and started asking only what works. Today, cunning worked.", when="overtake"),
+    ],
+    ("Richard Rorty", "Niccolò Machiavelli"): [
+        quip("Rorty does his own strategist Machiavelli -- no grand scheme to it, just the line that kept paying off, lap after lap, until it paid off past the Prince himself.", when="overtake"),
+    ],
+    ("Herbert Marcuse", "Theodor Adorno"): [
+        banter([("colour", "Marcuse past Adorno -- the old Frankfurt split, replayed at the apex. When the students rose up, one of these two went to the barricades and the other went to the telephone."),
+                ("pbp", "Marcuse to the barricades."),
+                ("colour", "Every time. Adorno analyses the corner; Marcuse takes it. That's the difference, and there it goes by.")], when="overtake"),
+    ],
+    ("Jacques Derrida", "Plato"): [
+        banter([("colour", "Derrida past Plato! He built an entire career taking the old man's certainties apart, line by line."),
+                ("pbp", "And now the racing line."),
+                ("colour", "Found the crack in the one Plato swore was perfect, and slipped clean through it. The dreamer's been deconstructed.")], when="overtake"),
     ],
 }
 
@@ -2012,9 +2121,13 @@ PODIUM_ANSWERS = {
     "Emma Goldman": {
         "teammate": ["Bakunin and I would be ashamed to hold station for one another. We raced flat out -- it's the only honest way."],
         "team_orders": ["Orders? On THIS team? They wouldn't dare key the radio. We settle it on the track, every single time."],
+        "charge": ["I danced through the lot of them, and I enjoyed every place. A race you can't take any joy in isn't worth winning -- same as a revolution."],
+        "win_open": ["The second it started to feel like fun instead of work, I knew. That's always been my measure of a thing going right."],
     },
     "Mikhail Bakunin": {
         "teammate": ["Hold station for Goldman? She'd never forgive me, and I'd never forgive myself. We tear it down together, the pair of us."],
+        "team_orders": ["Hold position for whom? I recognise no authority on that pit wall or anywhere else. We agreed to that before the engines fired -- which is to say, we agreed on nothing, gladly."],
+        "charge": ["I destroyed the gap in front of me, then the next, then the next. The urge to tear down is the urge to build, I've always said -- and today I tore down the whole field."],
         "win_open": ["I attacked from lights to flag and never once thought about managing it. Lead, lose it, take it straight back -- that is my whole race plan.",
                      "I have one gear: forward, hard. It went wrong for everyone but me today, which is roughly the plan."],
     },
@@ -2022,72 +2135,96 @@ PODIUM_ANSWERS = {
         "teammate": ["Closer than the timing screen will ever show. He taught me everything I know about racing. He did not, today, teach me to lift."],
         "team_orders": ["Hold position behind my old teacher? No. I respect him far too much to insult him by lifting."],
         "charge": ["I saw the gaps and I took them. You do not wait to be granted a place out here -- you go and you take it."],
+        "win_open": ["It was won the moment I decided not to wait for it. You don't receive a result like this -- you seize it, and you don't apologise for the taking."],
     },
     "Aimé Césaire": {
         "teammate": ["Fanon races like the student who outgrew the lesson. I taught him patience; he has clearly mislaid it. No matter -- it was a fine fight."],
         "pole_to_win": ["I let the hotheads tear past and tear themselves up. Clean lines, cool head -- and there was the win, waiting at the end."],
         "win_open": ["Composed all the way down. I wrote the lap out longhand and it proved quicker than their shouting."],
+        "weather": ["I didn't gamble. I read what the track was telling me, calmly, a little ahead of the rest, and acted once I was sure enough. Composure is its own strategy."],
     },
     "Niccolò Machiavelli": {
         "weather": ["The plan accounted for the rain before the first cloud arrived. Fortune merely confirmed what preparation had already decided."],
         "win_open": ["I knew at lights-out. The result was settled on the pit wall on Thursday; today was merely its execution."],
         "charge": ["Cunning, not force. I let them tire themselves fighting, and arrived, unhurried, at the front."],
+        "pole_to_win": ["From the front you do not race the others -- you manage them, the gap, the tyres, the appearance of being in control. I had decided this on Thursday. Sunday merely ratified it."],
     },
     "Karl Marx": {
         "charge": ["It was not heroics. It was the conditions, read correctly and applied patiently, lap after lap. The order corrects itself in the end."],
         "win_open": ["History was on my side this afternoon. So were the tyres. Today, the two were the same thing."],
         "weather": ["The material conditions shifted, and I adapted to them before the others noticed they had. That is the whole of strategy."],
+        "pole_to_win": ["From the front it is a matter of not squandering the advantage. I administered the lead, lap after lap, and let the result arrive on its own. It always does."],
+        "teammate": ["Luxemburg and I want the same world and argue the entire way to it. She'd have seized three moments I let pass. One of us is patient -- and the timing screen can say which of us was right."],
     },
     "Friedrich Nietzsche": {
         "charge": ["I held position exactly never. Forward was the only direction I was willing to recognise, so forward I went."],
         "survival": ["The knock sharpened me. I drove harder after it than most manage with an unmarked car."],
+        "team_orders": ["An order to hold station is an order to become less than I am. I did not hear it, and I would not have obeyed it if I had."],
         "win_open": ["I took the lead, and then I simply kept taking. At no corner did I decide I had enough.",
                      "I drove every lap as though I would have to drive it again forever. That tends to be quick."],
     },
     "Simone de Beauvoir": {
         "charge": ["Nothing out there was given to me. I made every place, one decision at a time, and lived with each one."],
         "pole_to_win": ["One is not born in front -- one stays there by choosing well, corner after corner. I chose well."],
+        "win_open": ["No single moment was handed to me. I became the winner of this race the way one becomes anything -- by choosing, corner after corner, and refusing to un-choose."],
+        "teammate": ["Nietzsche and I share a starting point and almost nothing after it. He drives as though the situation doesn't exist. I never once forgot what I was carrying or where I began -- and I beat him anyway."],
     },
     "Michel Foucault": {
         "weather": ["I'd committed to my move while the rest were still waiting for the wall to commit for them. That one lap was the race."],
         "win_open": ["The track herds everyone onto the same line. I spent the afternoon taking the ones it didn't want me to take."],
+        "charge": ["Every place came from a line the circuit was built to keep me off. The track disciplines you onto the obvious path; I refused it, corner after corner, all the way to the front."],
+        "pole_to_win": ["Leading only looks like freedom. In truth you're the most watched car out there, every mirror trained on you. I drove the whole race knowing exactly that -- and used it."],
     },
     "Rosa Luxemburg": {
         "weather": ["I didn't wait to be told. I saw the track turning and came in a lap before the pit wall would have called it."],
         "win_open": ["From fourth, I picked my laps and pounced when the gaps came. You can't plan that -- you feel it, and you go."],
+        "charge": ["You can't plan a climb like that -- you feel the field shift, you trust it, and you pounce a beat before anyone tells you to. Plan it, and you'd still be sat in fourth."],
+        "teammate": ["Marx held me up longer than the opposition did -- waiting, always waiting, for the perfect moment. I made my own. That's the whole argument between us, and today I settled it on the track."],
     },
     "Plato": {
         "pole_to_win": ["I drove the lap I had already seen, complete, in my mind. The rest were chasing a shadow of it."],
+        "charge": ["There was no improvising. I had seen the whole climb before lights-out, every pass in its place, and I spent the afternoon making the track agree with what I already knew."],
         "win_open": ["I had driven the whole race in my head before lights-out. Out there I simply matched the picture, corner by corner.",
                      "No surprises. I had seen this race complete before the lights went out, and I spent the afternoon making the world agree with it."],
     },
     "Diogenes": {
         "win_open": ["I expected nothing and arrived first. I recommend the method to the others."],
         "team_orders": ["Team orders? I recognise no authority but my own. The pit wall is welcome to shout into its barrel."],
+        "charge": ["No plan, no strategy, nothing to lose -- I had thrown all of that away before the race, the way I throw everything away. Turns out a man with no possessions also has nothing slowing him down."],
     },
     "Jacques Derrida": {
         "win_open": ["I found the gap where their certainty about the line used to be, and was through it before they noticed it had gone."],
         "charge": ["I unpicked their certainty about the racing line until there was a gap where their confidence had been. Then I drove through it."],
+        "weather": ["The others waited for the conditions to declare themselves. They never do -- there's no clean moment of certainty to wait for. I stopped waiting and committed, and that lap was the whole race."],
     },
     "Mary Wollstonecraft": {
         "charge": ["I took the chances I was owed and made each one count. No heroics -- just moving forward, place by place, all afternoon."],
         "win_open": ["Clear thinking, lap after lap. I didn't out-muscle anyone today -- I out-reasoned them into the braking zones."],
+        "pole_to_win": ["Holding the front is a discipline of the mind, not the right foot. I reasoned through every lap and let nobody tempt me into a mistake. Clear thinking, sustained -- that's the whole of it."],
+        "teammate": ["Paine and I argue from the same first principle and arrive at the same place, in our own ways. We raced it cleanly, as equals. I'd insist on nothing less, and so would he."],
     },
     "Thomas Paine": {
         "win_open": ["No cunning, no theatre. Plain courage, plainly applied. It tends to be enough."],
         "survival": ["She was bent, not broken. I shortened the braking, nursed the damage, and counted every last lap down to the flag."],
+        "charge": ["No cunning to it. I saw an honest gap, took it, did it again, and made no secret of how. Plain dealing, all the way to the front."],
+        "teammate": ["Wollstonecraft and I want the same things and say so plainly. We raced as equals, because that's the only terms either of us would accept."],
     },
     "Herbert Marcuse": {
         "charge": ["Every corner the others backed out of, I stayed in. That is where each of those places came from -- the moment they lifted and I did not."],
         "survival": ["The sensible move was to back out. I declined the sensible move, as is my habit."],
+        "win_open": ["It turned the moment I stopped accepting the race as it was handed to me. After that, every place was simply a refusal the others weren't willing to make."],
+        "team_orders": ["Hold station? That is precisely the sort of order one exists to refuse. I refused it."],
     },
     "Theodor Adorno": {
         "win_open": ["I drove a controlled, joyless, maximally efficient race. I'm told that is not how one is meant to enjoy it. I enjoyed it regardless."],
         "pole_to_win": ["From the front it is all management -- the gap, the tyres, one's own creeping suspicion of the whole enterprise. I managed all three."],
+        "charge": ["I climbed through a field convinced of its own brilliance, picking them off one at a time, and took no pleasure in it. Which is, I'd argue, the only honest way to take pleasure in anything."],
     },
     "Richard Rorty": {
         "weather": ["I went to the inters a lap before the textbook said to. Did it look right? No idea -- it put me up the road, which is all I asked of it."],
         "win_open": ["I stopped wondering whether my line was 'truly' the quickest and just drove the one that kept working. It kept working all day."],
+        "charge": ["I stopped asking whether I deserved each place and just took the ones that were there. Worked at the back, worked in the midfield, worked at the front. I don't ask more of an idea than that."],
+        "pole_to_win": ["I didn't defend the 'correct' line, I defended whichever one was keeping them behind me. They kept changing. So did I. That's the whole trick."],
     },
 }
 
@@ -2179,24 +2316,29 @@ DEBRIEF_STORY_OPENER = [
     "A couple of proper scraps out there today.",
     "It wasn't just the win -- the real racing was further back, too.",
     "Some of these will be talked about for a while.",
+    "Twenty of the finest minds in history, and not one of them could think their way past the fella in front. Had to race them. I loved it.",
+    "Here's the thing about this lot -- they'll disagree about everything except how badly they wanted to win. And it showed.",
 ]
 DEBRIEF_ARC_CONTACT = [
     "{a} and {b} went at it for laps -- and it ended in tears, the pair of them tangling. Inevitable, in the end.",
     "The fight between {a} and {b} could only end one way, and it did: contact, and a lot of arm-waving.",
     "{a} and {b} simply could not be separated -- until they separated each other into the scenery. Shame.",
     "{a} and {b} traded blows until there was a blow too many. That one boiled right over.",
+    "Two people that certain they're right, that close together, for that long -- something had to give. {a} and {b} found out what.",
 ]
 DEBRIEF_ARC_UNDERCUT = [
     "{winner} could never get by {loser} on track -- so they went and did it in the pit lane. Clinical.",
     "{loser} held {winner} up for an age, and paid for it at the stops. The undercut, executed perfectly.",
     "{winner} couldn't find a way past {loser} wheel-to-wheel, so they won the fight on the timing screen instead.",
     "All those laps stuck behind {loser}, and {winner} solved it the cold way -- a textbook undercut.",
+    "{winner} couldn't out-argue {loser} at the corner, so they out-thought them at the pit wall. The cleverest pass is the one that never touches the track.",
 ]
 DEBRIEF_ARC_EPIC = [
     "{a} and {b} swapped that place more times than I could count. That's racing at its very best.",
     "{a} and {b} gave us the fight of the day -- nose to tail, lap after lap, neither giving an inch.",
     "Go back and watch {a} against {b} again. Wheel to wheel for half the race and clean as you like.",
     "{a} and {b} put on a show -- a proper, old-fashioned scrap that ran and ran.",
+    "Neither {a} nor {b} would concede a single corner of the argument. Forty minutes of it, and not a wheel out of place. Magnificent.",
 ]
 DEBRIEF_DOTD = [
     "Has to be {name} -- {gain} made up from the flag. Carved clean through the lot of them.",
