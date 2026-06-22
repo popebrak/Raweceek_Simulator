@@ -11,6 +11,7 @@ voices/*.onnx.json
  
 # Chatterbox reference clips + any rendered race audio -- READMEs stay tracked
 *.wav
+*.mp3
 
 # Race audio outputs
 output/
