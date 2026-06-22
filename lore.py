@@ -1985,6 +1985,38 @@ OBJECTIVISM_PREVIEW = [
 ]
 
 
+# =============================================================================
+# THE OBJECTIVISM RUNNER -- the FLAG payoff to the lights-out promise.
+# =============================================================================
+# At lights-out the booth promised the Objectivism car would not finish. It never
+# does. This pays that off in the post-race show, landing the SAME beloved irony on
+# the actual manner of the failure THIS week -- which is why each line has a {manner}
+# slot the booth fills from what really happened (who went out, when, how, where).
+# One of these plays in the debrief whenever the runner has at least one recorded
+# exit (which, for this pairing, is always). Each is a list of (role, line) turns.
+OBJECTIVISM_PAYOFF = [
+    [("pbp", "And the Objectivism car, Benny -- told you so?"),
+     ("colour", "Told you at lights-out, and I'll savour it now. {manner} A whole creed built on the heroic individual who owes nobody a thing -- undone, as ever, by the pit crew, the engine builders, the hundred pairs of hands he pretends aren't there. The self-made man, made entirely by other people.")],
+
+    [("pbp", "Here he goes."),
+     ("colour", "I've earned this one, Phill. {manner} You cannot refuse the tow, the data and the very idea of cooperation and then act wounded when cooperation takes its revenge in a gravel trap. That's not ideology, that's mechanics. The car needs the collective every single lap."),
+     ("pbp", "And the maddening thing is you're not wrong about the hidden help.")],
+
+    [("pbp", "Steady on, comrade -- it's only a motor race."),
+     ("colour", "It's never ONLY a motor race, that's the whole joke. {manner} A philosophy of standing gloriously alone, demonstrated by two people who couldn't get a car home between them. Somewhere Rand's drafting a note blaming the marshals.")],
+
+    [("colour", "{manner} The self-reliant hero, beaten by the one thing he won't admit -- that he never built a single part of it. The tyres, the fuel, the road itself: all somebody else's labour. He just drives over it and calls it merit."),
+     ("pbp", "You've been waiting all race to say that."),
+     ("colour", "All week, Phill.")],
+
+    [("pbp", "I'll give you this one, Benny -- I came up with nothing, and I know exactly who gets the breaks."),
+     ("colour", "Then you know the punchline before I tell it. {manner} The man who owes nobody, carried his whole short life by everybody. That's not a sermon, mate -- that's the timing screen.")],
+
+    [("colour", "As foretold. {manner} A thousand pages on the triumph of the individual, and the individual is presently walking back to the paddock past all the people who'd have got him home."),
+     ("pbp", "Marvellous. Now -- the actual podium, before you start a reading group.")],
+]
+
+
 # A name to watch from outside the top five -- a buried strategist who'll climb, or a
 # charger who won't sit still. _watch_name() picks the bucket; phrasing from the pool.
 # {name} is the driver, {start_ord} their spelled grid position.

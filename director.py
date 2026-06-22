@@ -40,7 +40,7 @@ will read the field to pace a restart. And the structural bookends (lights-out, 
 finish) stay in main.py for now because they must lead and trail no matter what.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import random
 
 
@@ -164,6 +164,26 @@ class BattleArc:
     resolved: str = ""       # "" while live; else how it ENDED: contact|undercut|retirement
 
 
+@dataclass
+class Runner:
+    """A STORY RUNNER -- a developed thread the booth carries across a race, floating
+    above the lap-by-lap calling. Unlike a BattleArc (a fight over a position), a
+    runner is about a DRIVER'S preoccupation playing out: opened when the race trips
+    it, kept fresh by what happens, and named a 'lesson' only in hindsight at the flag.
+
+    `manner` is the running record of what the subject actually DID (their retirements,
+    their deviation events) -- it's what keeps a runner fresh through the race and what
+    the debrief reads back as the payoff. The race gets the last word: a runner opened
+    mid-race can be confounded at the flag, and the payoff reads off `manner`, not the
+    opening guess."""
+    subject: tuple           # driver name(s) the runner is about
+    kind: str                # "objectivism" | "deviation"
+    opened_lap: int          # 0 == opened at lights-out (Objectivism's dramatic irony)
+    preoccupation: str = ""  # what tripped it (the philosophy in play)
+    manner: list = field(default_factory=list)  # [(name, lap, cause, location), ...]
+    resolved: str = ""       # "" while live; else how it landed
+
+
 class RaceMemory:
     """Everything the director knows so far about THIS race -- the substrate memory
     and callbacks read from.
@@ -183,6 +203,19 @@ class RaceMemory:
         self.passes = []          # every pass the director was shown, in order (the truthful log)
         self.spoken = 0           # total beats actually voiced (for pacing stats)
         self.last_rundown_lap = 0 # the lap of the most recent state-of-the-race readout
+        self.runners = []         # story RUNNERS opened this race (see Runner / Director)
+
+    def open_runner(self, runner):
+        self.runners.append(runner)
+        return runner
+
+    def runner_of_kind(self, kind):
+        """The (single) live runner of a kind, or None. We ration to one of each at a
+        time, so first match is the one."""
+        for r in self.runners:
+            if r.kind == kind:
+                return r
+        return None
 
     def arc_for(self, pair):
         return self.arcs.get(pair)
@@ -217,6 +250,25 @@ class Director:
         self.notable_pos = NOTABLE_OVERTAKE
         if track is not None:
             self.notable_pos += round(track.overtaking_difficulty * 10)
+
+    # =========================================================================
+    # STORY RUNNERS: developed threads carried above the lap-by-lap calling.
+    # =========================================================================
+    def open_objectivism(self, names):
+        """Open the Objectivism runner at lights-out -- the one runner that's pure
+        dramatic irony. Rand and Stirner are contractually doomed (racecraft 0.0), so
+        the booth can promise the failure before a wheel turns; the RACE then supplies
+        the manner of it, recorded onto the runner as they go out, and the debrief
+        lands the payoff. Called once, right after the preview plays the gag. `names`
+        is the Objectivism pairing (from the grid), so the director needn't know the
+        teams itself."""
+        if not names:
+            return None
+        if self.memory.runner_of_kind("objectivism") is not None:
+            return None
+        return self.memory.open_runner(Runner(
+            subject=tuple(names), kind="objectivism", opened_lap=0,
+            preoccupation="the heroic individual who needs no one"))
 
     # =========================================================================
     # THE DESK: gather every candidate, then pace them to one shared budget.
@@ -415,8 +467,18 @@ class Director:
     def _close_on_retire(self, inc):
         if inc.retirement:
             self.memory.close_arcs_for(inc.driver_name, "retirement")
+            self._record_runner_exit(inc.driver_name, inc)
         if inc.other_retired:
             self.memory.close_arcs_for(inc.other_name, "retirement")
+            self._record_runner_exit(inc.other_name, inc)
+
+    def _record_runner_exit(self, name, inc):
+        """If a retiree is the subject of the Objectivism runner, record the MANNER of
+        their exit. This is what keeps the runner fresh -- the payoff reads the actual
+        cause/lap/location, so the same beloved joke lands on different facts each race."""
+        runner = self.memory.runner_of_kind("objectivism")
+        if runner is not None and name in runner.subject:
+            runner.manner.append((name, inc.lap, inc.cause, inc.location))
 
     # --- the stewards --------------------------------------------------------
     def _steward_candidates(self, report):

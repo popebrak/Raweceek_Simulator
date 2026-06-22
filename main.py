@@ -229,6 +229,9 @@ def run_weekend(track=None, speed=20.0, grid_pause=10.0, show_telemetry=False,
     print(DIVIDER)
     print("  COUNTDOWN TO GREEN")
     _play_show(booth.preview(quali_results, track), show_pace, narrator)
+    # The preview has just delivered the lights-out promise; open the Objectivism
+    # runner so the director carries it to the flag and the debrief pays it off.
+    director.open_objectivism([d.name for d in GRID if d.team == "Objectivism"])
 
     starting_grid = [driver for driver, lap, qualified in quali_results if qualified]
     history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
@@ -276,6 +279,7 @@ def render_weekend_audio(track=None, path="race.wav", laps=None, difficulty=None
     director = Director(track, booth, RaceMemory())
     quali_results = run_qualifying(GRID, track)
     cap.script.extend(booth.preview(quali_results, track))
+    director.open_objectivism([d.name for d in GRID if d.team == "Objectivism"])
     starting_grid = [d for d, lap, ok in quali_results if ok]
     history = run_race(starting_grid, track, laps=laps, difficulty=difficulty)
     play_race(history, speed=1e9, track=track, booth=booth, narrator=cap, director=director)

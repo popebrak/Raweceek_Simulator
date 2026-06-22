@@ -46,7 +46,8 @@ from lore import (DRIVER_LORE, PAIR_LORE, TRACK_LORE, DISCUSSIONS,
                   # the Countdown to Green -- pooled phrasings + the Objectivism gag
                   PREVIEW_WELCOME, PREVIEW_POLE, PREVIEW_POLE_SOLO, PREVIEW_HANDOFF,
                   PREVIEW_STANDBY, POLE_READ, TRACK_TIP_OPENER, TRACK_TIP_PASS,
-                  TRACK_TIP_TYRE, OBJECTIVISM_PREVIEW, WATCH_STRATEGIST, WATCH_CHARGER,
+                  TRACK_TIP_TYRE, OBJECTIVISM_PREVIEW, OBJECTIVISM_PAYOFF,
+                  WATCH_STRATEGIST, WATCH_CHARGER,
                   # the revamped Countdown -- character pole reads + grid storylines
                   POLE_CHARACTER, PREVIEW_MATCHUP, PREVIEW_WEATHER, PREVIEW_CORNER,
                   # the shows as conversations -- give-and-take for pre/post-race
@@ -1145,6 +1146,43 @@ class Booth:
         return [("colour", self._fresh("_prev_corner", PREVIEW_CORNER).format(
             corner=random.choice(corners)))]
 
+    def _objectivism_manner(self, exits):
+        """Turn the recorded Objectivism exits [(name, lap, cause, location), ...] into
+        one broadcast-clean phrase: who went out, when, how, where. TTS-clean -- no
+        jargon, and laps are spelled so the voice reads 'lap six', not 'lap 6'."""
+        CAUSE = {
+            "wall": "into the wall",
+            "kerb": "off over the kerbs",
+            "off-track": "off into the gravel",
+            "collision": "out in the contact",
+            "damage failure": "with the car finally giving up on her",
+            "over the limit": "over the limit and gone",
+        }
+        parts = []
+        for i, (name, lap, cause, location) in enumerate(exits):
+            short = self._short(name)
+            how = CAUSE.get(cause, "out")
+            where = f" at {location}" if location else ""
+            lead = short if i == 0 else f"{short} following him"
+            parts.append(f"{lead} on lap {_spell(lap)} {how}{where}")
+        if not parts:
+            return "Both of them gone before half-distance, as ever."
+        return (parts[0] + (", " + ", ".join(parts[1:]) if len(parts) > 1 else "")).rstrip(".") + "."
+
+    def _objectivism_payoff(self, memory):
+        """The flag payoff for the Objectivism runner: lands the lights-out promise on
+        how Rand and Stirner actually went out THIS week. The manner makes the same
+        beloved joke land on fresh facts every race. Returns turns, or [] if there's no
+        runner (e.g. a debrief with no memory)."""
+        if memory is None:
+            return []
+        runner = memory.runner_of_kind("objectivism")
+        if runner is None or not runner.manner:
+            return []
+        manner = self._objectivism_manner(runner.manner)
+        exchange = self._fresh("_obj_payoff", OBJECTIVISM_PAYOFF)
+        return [(role, line.format(manner=manner)) for role, line in exchange]
+
     def debrief(self, summary, history, track, memory=None):
         """The post-race show. Its spine is now the race's ACTUAL arcs (read from the
         director's RaceMemory): the fights that defined the race and how they ended --
@@ -1176,6 +1214,11 @@ class Booth:
         if stories:
             turns.append(("pbp", self._fresh("_debrief_story_q", DEBRIEF_STORY_Q)))
             turns.extend(stories)
+
+        # The Objectivism runner's flag payoff -- opened at lights-out, landed here on
+        # the actual manner of the failure. Always present (the pairing always retires),
+        # and placed BEFORE the podium handoff so the booth never talks over an interview.
+        turns.extend(self._objectivism_payoff(memory))
 
         # The drive of the day.
         if s.drive_of_the_day:
